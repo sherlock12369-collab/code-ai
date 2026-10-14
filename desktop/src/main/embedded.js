@@ -15,7 +15,16 @@ function serverDir() {
     path.join(process.resourcesPath || '', 'server'),
     path.join(__dirname, '..', '..', '..', 'server')
   ];
-  return candidates.find((p) => p && fs.existsSync(path.join(p, 'server.js'))) || null;
+  return candidates.find((p) => p && serverEntry(p)) || null;
+}
+
+// 설치본에는 의존성까지 한 파일로 묶은 server.bundle.mjs만 들어 있다 (node_modules 불필요).
+// 개발 중에 번들이 없으면 server.js를 쓴다.
+function serverEntry(dir) {
+  for (const name of ['server.bundle.mjs', 'server.js']) {
+    if (fs.existsSync(path.join(dir, name))) return path.join(dir, name);
+  }
+  return null;
 }
 
 // 누군가 이미 그 포트에서 응답하는지 확인 (Windows에서는 0.0.0.0에 묶인 포트에 127.0.0.1로 또 묶일 수 있어서 먼저 확인)
@@ -71,7 +80,7 @@ class EmbeddedServer {
       const dir = serverDir();
       if (!dir) throw new Error('내장 AI 서버 파일을 찾을 수 없습니다.');
       this.dir = dir;
-      const mod = await import(pathToFileURL(path.join(dir, 'server.js')).href);
+      const mod = await import(pathToFileURL(serverEntry(dir)).href);
       const env = { ...process.env, HOST, PORT: String(PREFERRED_PORT) };
       if (dataDir) env.DATA_DIR = dataDir;
       if (model) env.MODEL = model;

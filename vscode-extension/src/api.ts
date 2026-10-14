@@ -32,7 +32,7 @@ export type ChatEvent =
   | { type: 'error'; message: string };
 
 export const UNREACHABLE_MESSAGE =
-  'Code AI 서버에 연결할 수 없습니다. 서버가 실행 중인지, 설정의 "codeai.serverUrl" 주소가 올바른지 확인해 주세요.';
+  'Code AI 서버에 연결할 수 없습니다. 설정 "codeai.serverUrl"을 비워 두면 확장에 내장된 서버를 사용합니다. 직접 지정했다면 주소가 올바른지 확인해 주세요.';
 
 export class ServerError extends Error {
   constructor(message: string, public readonly unreachable = false) {
@@ -40,9 +40,16 @@ export class ServerError extends Error {
   }
 }
 
+// 확장에 내장된 AI 서버 주소 (extension.ts가 시작한 뒤 넣어 준다)
+let embeddedUrl: string | undefined;
+export function setEmbeddedServerUrl(url: string | undefined): void {
+  embeddedUrl = url;
+}
+
+/** 설정 "codeai.serverUrl"이 비어 있으면 내장 서버를 쓴다. */
 export function getServerUrl(): string {
-  const raw = vscode.workspace.getConfiguration('codeai').get<string>('serverUrl') || 'http://localhost:8787';
-  return raw.replace(/\/+$/, '');
+  const raw = (vscode.workspace.getConfiguration('codeai').get<string>('serverUrl') || '').trim();
+  return (raw || embeddedUrl || 'http://localhost:8787').replace(/\/+$/, '');
 }
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';

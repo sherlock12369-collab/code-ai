@@ -2,7 +2,7 @@
   "name": "codeai",
   "displayName": "Code AI",
   "description": "AI로 코드를 짜는 도구 — 실시간 미리보기, 클릭 수정, 변경 기록, 원클릭 배포, 템플릿",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "codeai",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -143,8 +143,8 @@
       "properties": {
         "codeai.serverUrl": {
           "type": "string",
-          "default": "http://localhost:8787",
-          "description": "Code AI 서버 주소 (Code AI 데스크톱 앱을 켜 두면 내장 서버 http://localhost:8787 를 사용할 수 있습니다)"
+          "default": "",
+          "markdownDescription": "AI 서버 주소. **비워 두면 확장에 내장된 서버를 사용합니다 (권장)**. 다른 서버를 쓸 때만 입력하세요. 예: `http://localhost:8787`"
         },
         "codeai.deployServerUrl": {
           "type": "string",
@@ -188,8 +188,9 @@
     "copy-templates": "node ./scripts/copy-templates.js",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run copy-templates && npm run compile",
-    "package": "vsce package --no-dependencies"
+    "vscode:prepublish": "npm run copy-templates && npm run copy-server && npm run compile",
+    "package": "vsce package --no-dependencies",
+    "copy-server": "node ./scripts/copy-server.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

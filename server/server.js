@@ -11,7 +11,7 @@ import { safeRelativePath } from './lib/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 
 // AI는 Claude API만 사용한다. API 키는 서버에 두지 않고, 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다.
 export const DEFAULT_MODEL = 'claude-opus-5-5';

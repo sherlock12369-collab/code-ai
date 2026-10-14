@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { ServerError, UNREACHABLE_MESSAGE, health, setApiKey } from './api';
+import { ServerError, UNREACHABLE_MESSAGE, health, setApiKey, setEmbeddedServerUrl } from './api';
+import { startEmbeddedServer } from './embeddedServer';
 import { ChatViewProvider } from './chatView';
 import { deployWorkspace } from './deploy';
 import { HistoryStore } from './history';
@@ -12,6 +13,13 @@ import { getRoot, resolveInRoot } from './workspace';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // 사용자의 Claude API 키는 VS Code 보안 저장소(SecretStorage)에 둔다.
   setApiKey(await context.secrets.get(SECRET_KEY));
+  // 확장에 들어 있는 AI 서버를 켠다 (다른 PC에서도 서버 설치 불필요)
+  try {
+    setEmbeddedServerUrl(await startEmbeddedServer(context));
+  } catch (e: any) {
+    console.error('[Code AI] 내장 서버 시작 실패', e);
+    void vscode.window.showWarningMessage('Code AI 내장 AI 서버를 시작하지 못했습니다: ' + (e?.message || e));
+  }
   const modelStatus = new ModelStatus();
   const askKey = () => promptApiKey(context, () => modelStatus.update());
   const history = new HistoryStore();

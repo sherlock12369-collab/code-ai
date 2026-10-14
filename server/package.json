@@ -1,12 +1,13 @@
 {
   "name": "code-ai-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Code AI 서버 — Claude API 기반 코딩 AI (사용자 본인의 API 키 사용)",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test.mjs"
+    "test": "node test.mjs",
+    "build": "esbuild server.js --bundle --platform=node --format=esm --target=node18 --outfile=server.bundle.mjs --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\""
   },
   "engines": {
     "node": ">=18"
@@ -15,5 +16,8 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10"
   }
 }

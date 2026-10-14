@@ -717,19 +717,27 @@ function registerIpc() {
 
   ipcMain.handle('deploy', async () => {
     if (!projectRoot) throw new Error('프로젝트가 열려 있지 않습니다.');
-    const url = settings.deployServerUrl || serverUrl();
     const files = await collectFiles(['index.html'], { maxFiles: 500, maxFileSize: 2 * 1024 * 1024, maxTotal: 20 * 1024 * 1024, includeBinary: true });
     if (!files.length) throw new Error('배포할 파일이 없습니다.');
+    const body = JSON.stringify({ name: path.basename(projectRoot), files });
+    const post = (base) => fetch(`${base}/api/deploy`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(90000)
+    });
+    let url = settings.deployServerUrl || serverUrl();
     let res;
     try {
-      res = await fetch(`${url}/api/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: path.basename(projectRoot), files }),
-        signal: AbortSignal.timeout(60000)
-      });
+      res = await post(url);
+      if (res.status >= 500 && settings.deployServerUrl) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-      throw new Error(friendlyError(err, url));
+      // 공용 배포 서버에 닿지 않으면 AI 서버(내장 서버)에 배포한다 → 내 PC에서만 열리는 링크
+      if (!settings.deployServerUrl) throw new Error(friendlyError(err, url));
+      console.error('[deploy] 공용 배포 서버 실패, 로컬로 배포', err.message);
+      url = serverUrl();
+      try {
+        res = await post(url);
+      } catch (err2) {
+        throw new Error(friendlyError(err2, url));
+      }
     }
     const text = await res.text();
     let data = {};

@@ -222,7 +222,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 await test('GET /api/health', async () => {
   const r = await fetch(`${base}/api/health`);
   assert.equal(r.headers.get('access-control-allow-origin'), '*');
-  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.1.0' });
+  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.1.1' });
 });
 
 await test('POST /api/deploy → /sites/<id>/ 서비스', async () => {
@@ -251,11 +251,12 @@ await test('POST /api/deploy 경로 탈출 → 400', async () => {
 
 await test('GET /updates/latest.json', async () => {
   const j = await (await fetch(`${base}/updates/latest.json`)).json();
-  assert.equal(j.version, '1.1.0');
+  assert.equal(j.version, '1.1.1');
   assert.match(j.notes, /Claude/);
   assert.match(j.notes, /API 키/);
-  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.0.exe');
-  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.0.dmg');
+  assert.match(j.notes, /1.1.1/);
+  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe');
+  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.1.dmg');
 });
 
 await test('OPTIONS 프리플라이트 (CORS, x-api-key 허용)', async () => {
@@ -438,7 +439,7 @@ await test('DEPLOY_ONLY: 채팅/키 확인/모델은 404, 배포·사이트는 �
   assert.equal(getConfig({ DEPLOY_ONLY: '1' }).deployOnly, true);
   assert.equal(getConfig({}).deployOnly, false);
   await withApp({ deployOnly: true, publicUrl: 'https://sites.example.com' }, async (u) => {
-    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.1.0' });
+    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.1.1' });
     for (const [method, p] of [['POST', '/api/chat'], ['POST', '/api/check-key'], ['GET', '/api/models']]) {
       const r = await fetch(`${u}${p}`, { method, headers: { 'x-api-key': KEY }, body: method === 'POST' ? '{}' : undefined });
       assert.equal(r.status, 404, p);
@@ -472,7 +473,7 @@ await test('createApp에 일부 옵션만 넘겨도 동작', async () => {
   try {
     const j = await (await fetch(`http://127.0.0.1:${s5.address().port}/api/health`)).json();
     assert.equal(j.ok, true);
-    assert.equal(j.version, '1.1.0');
+    assert.equal(j.version, '1.1.1');
   } finally {
     s5.closeAllConnections();
     s5.close();

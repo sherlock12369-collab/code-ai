@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Code AI 다운로드</title>
-  <meta name="description" content="Code AI 1.1.0 — 만드는 결과물을 실시간으로 보면서 AI와 함께 코드를 짜는 도구. Windows, macOS, VS Code 확장 지원.">
+  <meta name="description" content="Code AI 1.1.1 — 만드는 결과물을 실시간으로 보면서 AI와 함께 코드를 짜는 도구. Windows, macOS, VS Code 확장 지원.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <script>
@@ -44,22 +44,22 @@
     <!-- 히어로 -->
     <section class="hero" id="top">
       <div class="container hero-inner">
-        <span class="pill"><span class="dot"></span> 버전 1.1.0 출시</span>
+        <span class="pill"><span class="dot"></span> 버전 1.1.1 출시</span>
         <h1>만드는 그대로 보면서,<br><span class="accent-text">AI와 함께 코딩하세요.</span></h1>
         <p class="lead">Code AI는 편집기 옆에서 결과물을 실시간으로 보여주는 AI 코딩 도구입니다. 말로 요청하고, 화면에서 바로 확인하고, 클릭 한 번으로 배포하세요.</p>
 
         <div class="download" id="download">
-          <a class="btn btn-lg btn-primary" id="primaryDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.0.exe">
+          <a class="btn btn-lg btn-primary" id="primaryDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe">
             <span class="os-icon" id="primaryIcon" aria-hidden="true"></span>
             <span id="primaryLabel">Windows용 다운로드</span>
           </a>
-          <p class="dl-meta" id="primaryMeta">버전 1.1.0 · Windows 10 이상 · 64비트</p>
+          <p class="dl-meta" id="primaryMeta">버전 1.1.1 · Windows 10 이상 · 64비트</p>
           <div class="dl-others">
             <span class="muted">다른 플랫폼:</span>
-            <a class="btn btn-sm btn-ghost" id="dlWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.0.exe">
+            <a class="btn btn-sm btn-ghost" id="dlWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe">
               <span class="os-icon" data-os="win" aria-hidden="true"></span>Windows
             </a>
-            <a class="btn btn-sm btn-ghost" id="dlMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.0.dmg">
+            <a class="btn btn-sm btn-ghost" id="dlMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.1.dmg">
               <span class="os-icon" data-os="mac" aria-hidden="true"></span>macOS
             </a>
             <a class="btn btn-sm btn-ghost" href="#versions">
@@ -134,9 +134,19 @@
               <li>원클릭 배포와 변경 기록 내장</li>
             </ul>
             <div class="row-btns">
-              <a class="btn btn-primary" id="verWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.0.exe">Windows (.exe)</a>
-              <a class="btn btn-ghost" id="verMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.0.dmg">macOS (.dmg)</a>
+              <a class="btn btn-primary" id="verWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe">Windows (.exe)</a>
+              <a class="btn btn-ghost" id="verMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.1.dmg">macOS (.dmg)</a>
             </div>
+            <details class="mac-help">
+              <summary>macOS에서 "열 수 없습니다"라고 나오면</summary>
+              <ol class="steps">
+                <li>dmg를 열고 <b>Code AI</b>를 <b>응용 프로그램</b> 폴더로 끌어다 놓습니다.</li>
+                <li>Code AI를 한 번 실행합니다. 경고가 나오면 <b>완료</b>를 누릅니다.</li>
+                <li><b>시스템 설정 → 개인정보 보호 및 보안</b> 맨 아래에서 <b>그래도 열기</b>를 누릅니다. (처음 한 번만)</li>
+                <li>그래도 안 되면 터미널에 <code>xattr -cr "/Applications/Code AI.app"</code> 를 입력한 뒤 다시 엽니다.</li>
+              </ol>
+              <p class="muted">Apple 유료 개발자 인증을 받지 않은 앱이라 처음 한 번 이 과정이 필요합니다.</p>
+            </details>
           </article>
           <article class="card version">
             <div class="version-head">
@@ -147,11 +157,11 @@
               <li><b>마켓플레이스:</b> 확장 탭에서 <code>Code AI</code> 검색 후 설치 <span class="muted">(곧 공개)</span></li>
               <li><b>.vsix 파일:</b> 아래에서 파일을 받은 뒤 명령 팔레트에서 <code>Extensions: Install from VSIX…</code> 실행</li>
               <li>또는 터미널에서:
-                <pre class="cmd"><code>code --install-extension codeai-1.1.0.vsix</code></pre>
+                <pre class="cmd"><code>code --install-extension codeai-1.1.1.vsix</code></pre>
               </li>
             </ol>
             <div class="row-btns">
-              <a class="btn btn-ghost" id="dlVsix" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/codeai-1.1.0.vsix">.vsix 다운로드</a>
+              <a class="btn btn-ghost" id="dlVsix" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/codeai-1.1.1.vsix">.vsix 다운로드</a>
               <span class="btn btn-ghost is-disabled" aria-disabled="true">마켓플레이스 (준비 중)</span>
             </div>
           </article>
@@ -224,10 +234,19 @@
     <section class="section" id="releases">
       <div class="container narrow">
         <h2 class="section-title">릴리스 노트</h2>
-        <p class="section-sub">현재 버전: <b id="currentVersion">1.1.0</b></p>
+        <p class="section-sub">현재 버전: <b id="currentVersion">1.1.1</b></p>
         <ol class="timeline">
           <li class="tl-item">
-            <div class="tl-head"><span class="tl-ver">1.1.0</span><span class="badge badge-accent">최신</span></div>
+            <div class="tl-head"><span class="tl-ver">1.1.1</span><span class="badge badge-accent">최신</span></div>
+            <ul class="checks">
+              <li>다른 PC에서 AI 서버가 실행되지 않던 문제 수정 (서버를 앱 안에 한 파일로 포함)</li>
+              <li>macOS: Apple Silicon 맥에서 "열 수 없음"으로 실행되지 않던 문제 수정</li>
+              <li>VS Code 확장에 AI 서버 내장: 확장만 설치하면 바로 사용</li>
+              <li>원클릭 배포 공유 링크: 다른 사람도 열 수 있는 공용 배포 서버 (설정에서 끌 수 있음)</li>
+            </ul>
+          </li>
+          <li class="tl-item">
+            <div class="tl-head"><span class="tl-ver">1.1.0</span></div>
             <ul class="checks">
               <li>AI가 Claude로 바뀜: 본인의 Claude API 키를 입력해 사용 (별도 프로그램·모델 다운로드 불필요)</li>
               <li>모델 선택: Claude Opus 5.5(고품질) / Sonnet 5.5(균형) / Haiku 5.5(빠름·저렴)</li>
@@ -261,7 +280,7 @@
       <div class="container narrow center">
         <h2 class="section-title">지금 바로 시작하세요</h2>
         <p class="section-sub">무료로 다운로드하고 첫 프로젝트를 템플릿에서 만들어 보세요.</p>
-        <a class="btn btn-lg btn-primary" id="footerDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.0.exe">다운로드</a>
+        <a class="btn btn-lg btn-primary" id="footerDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe">다운로드</a>
       </div>
     </section>
   </main>
@@ -269,7 +288,7 @@
   <footer class="footer">
     <div class="container footer-inner">
       <span>© 2026 Code AI</span>
-      <span class="muted">버전 1.1.0</span>
+      <span class="muted">버전 1.1.1</span>
     </div>
   </footer>
 

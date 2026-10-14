@@ -36,9 +36,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      # 내장 AI 서버의 의존성(Anthropic SDK)도 설치 파일에 들어간다
-      - run: npm ci --omit=dev
-        working-directory: server
       - run: npm ci
         working-directory: desktop
       # 빌드가 스스로 릴리스에 올리지 않게 한다 (package.json 스크립트에 --publish never). 업로드는 아래 gh로.
