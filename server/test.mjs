@@ -432,6 +432,38 @@ await test('POST /api/check-key: 키 없음 401 / 올바름 ok / 틀림 401', as
   }
 });
 
+console.log('배포 전용 서버');
+
+await test('DEPLOY_ONLY: 채팅/키 확인/모델은 404, 배포·사이트는 동작', async () => {
+  assert.equal(getConfig({ DEPLOY_ONLY: '1' }).deployOnly, true);
+  assert.equal(getConfig({}).deployOnly, false);
+  await withApp({ deployOnly: true, publicUrl: 'https://sites.example.com' }, async (u) => {
+    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.1.0' });
+    for (const [method, p] of [['POST', '/api/chat'], ['POST', '/api/check-key'], ['GET', '/api/models']]) {
+      const r = await fetch(`${u}${p}`, { method, headers: { 'x-api-key': KEY }, body: method === 'POST' ? '{}' : undefined });
+      assert.equal(r.status, 404, p);
+      assert.match((await r.json()).error, /배포 전용/);
+    }
+    const r = await fetch(`${u}/api/deploy`, { method: 'POST', body: JSON.stringify({ name: 'pub', files: [{ path: 'index.html', content: 'hi' }] }) });
+    const { url } = await r.json();
+    assert.match(url, /^https:\/\/sites\.example\.com\/sites\/pub-[0-9a-f]{8}\/$/);
+    const page = await fetch(url.replace('https://sites.example.com', u));
+    assert.equal(await page.text(), 'hi');
+  });
+});
+
+await test('DEPLOY_LIMIT_PER_HOUR: 한도를 넘으면 429', async () => {
+  assert.equal(getConfig({ DEPLOY_LIMIT_PER_HOUR: '30' }).deployLimitPerHour, 30);
+  await withApp({ deployLimitPerHour: 2 }, async (u) => {
+    const dep = () => fetch(`${u}/api/deploy`, { method: 'POST', body: JSON.stringify({ name: 'x', files: [{ path: 'a.txt', content: 'a' }] }) });
+    assert.equal((await dep()).status, 200);
+    assert.equal((await dep()).status, 200);
+    const r = await dep();
+    assert.equal(r.status, 429);
+    assert.match((await r.json()).error, /너무 많습니다/);
+  });
+});
+
 console.log('내장 실행 (데스크톱 앱용)');
 
 await test('createApp에 일부 옵션만 넘겨도 동작', async () => {

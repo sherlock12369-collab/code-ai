@@ -37,6 +37,12 @@ export function getConfig(env = process.env) {
     apiBaseUrl: (env.CLAUDE_API_BASE_URL || '').replace(/\/+$/, ''),
     model: isClaudeModel(env.MODEL) ? env.MODEL : DEFAULT_MODEL,
     publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, ''),
+    // 배포 전용 서버(인터넷 공용): AI 채팅은 끄고 사이트 배포/서비스만 한다.
+    deployOnly: /^(1|true)$/i.test(env.DEPLOY_ONLY || ''),
+    // IP당 1시간 배포 횟수 제한 (0 = 제한 없음)
+    deployLimitPerHour: Number(env.DEPLOY_LIMIT_PER_HOUR) > 0 ? Number(env.DEPLOY_LIMIT_PER_HOUR) : 0,
+    // 프록시(Fly.io 등) 뒤에서 실제 접속 IP 헤더를 믿을지
+    trustProxy: /^(1|true)$/i.test(env.TRUST_PROXY || ''),
     dataDir: path.resolve(env.DATA_DIR || path.join(__dirname, 'data')),
     updatesFile: path.resolve(env.UPDATES_FILE || path.join(__dirname, 'updates', 'latest.json')),
     downloadsDir: path.resolve(env.DOWNLOADS_DIR || path.join(__dirname, 'downloads')),
@@ -288,6 +294,30 @@ function handleModels(cfg, res) {
   return sendJson(res, 200, { models, default: cfg.model, provider: 'claude' });
 }
 
+// ---------- 배포 횟수 제한 ----------
+
+function clientIp(cfg, req) {
+  if (cfg.trustProxy) {
+    const h = req.headers['fly-client-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (h) return h;
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+// 허용되면 true. 최근 1시간 기록만 유지한다.
+function allowDeploy(cfg, hits, ip) {
+  if (!cfg.deployLimitPerHour) return true;
+  const now = Date.now();
+  const recent = (hits.get(ip) || []).filter((t) => now - t < 3600_000);
+  const ok = recent.length < cfg.deployLimitPerHour;
+  if (ok) recent.push(now);
+  hits.set(ip, recent);
+  if (hits.size > 10_000) {
+    for (const [k, v] of hits) if (!v.some((t) => now - t < 3600_000)) hits.delete(k);
+  }
+  return ok;
+}
+
 // ---------- 정적 파일 ----------
 
 async function serveStatic(res, rootDir, relPath, method) {
@@ -327,6 +357,7 @@ async function serveStatic(res, rootDir, relPath, method) {
 export function createApp(options) {
   const cfg = resolveConfig(options);
   const sitesDir = path.join(cfg.dataDir, 'sites');
+  const deployHits = new Map();
 
   return http.createServer(async (req, res) => {
     setCors(res);
@@ -345,7 +376,12 @@ export function createApp(options) {
 
     try {
       if (pathname === '/api/health' && isGet) {
+        if (cfg.deployOnly) return sendJson(res, 200, { ok: true, mode: 'deploy', version: VERSION });
         return sendJson(res, 200, { ok: true, model: cfg.model, version: VERSION });
+      }
+
+      if (cfg.deployOnly && ['/api/chat', '/api/check-key', '/api/models'].includes(pathname)) {
+        return sendJson(res, 404, { error: '이 서버는 배포 전용입니다. AI 채팅은 앱의 내장 서버를 사용하세요.' });
       }
 
       if (pathname === '/api/models' && isGet) {
@@ -361,6 +397,9 @@ export function createApp(options) {
       }
 
       if (pathname === '/api/deploy' && req.method === 'POST') {
+        if (!allowDeploy(cfg, deployHits, clientIp(cfg, req))) {
+          return sendJson(res, 429, { error: '배포 요청이 너무 많습니다. 잠시 후 다시 시도하세요.' });
+        }
         const body = await readJsonBody(req);
         const id = await deploySite(sitesDir, body);
         const url = `${baseUrl(cfg, req)}/sites/${id}/`;

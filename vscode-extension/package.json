@@ -146,6 +146,11 @@
           "default": "http://localhost:8787",
           "description": "Code AI 서버 주소 (Code AI 데스크톱 앱을 켜 두면 내장 서버 http://localhost:8787 를 사용할 수 있습니다)"
         },
+        "codeai.deployServerUrl": {
+          "type": "string",
+          "default": "https://code-ai-sites.fly.dev",
+          "markdownDescription": "원클릭 배포에 쓸 공용 배포 서버. 여기에 올린 사이트는 누구나 링크로 열 수 있습니다. 비워 두면 `codeai.serverUrl` 서버에 배포합니다 (내 PC 서버면 내 PC에서만 열림)."
+        },
         "codeai.model": {
           "type": "string",
           "default": "claude-opus-5-5",

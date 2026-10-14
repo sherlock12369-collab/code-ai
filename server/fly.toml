@@ -1,0 +1,27 @@
+# Code AI 배포 전용 서버 — Fly.io
+# 처음 한 번: flyctl apps create code-ai-sites && flyctl volumes create sites_data --region nrt --size 1 -a code-ai-sites
+# 배포: (server 폴더에서) flyctl deploy
+app = "code-ai-sites"
+primary_region = "nrt"
+
+[env]
+  PUBLIC_URL = "https://code-ai-sites.fly.dev"
+  DEPLOY_ONLY = "1"
+  DEPLOY_LIMIT_PER_HOUR = "30"
+  TRUST_PROXY = "1"
+
+[mounts]
+  source = "sites_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

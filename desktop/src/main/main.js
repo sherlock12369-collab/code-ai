@@ -21,12 +21,15 @@ const MODELS = [
   { id: 'claude-haiku-5-5', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' }
 ];
 const KEY_CONSOLE_URL = 'https://console.anthropic.com/settings/keys';
+// 원클릭 배포 공유 링크용 공용 서버 (배포 전용, server/fly.toml)
+const PUBLIC_DEPLOY_URL = 'https://code-ai-sites.fly.dev';
 
 // ───────────────────────── 설정 ─────────────────────────
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 let settings = {
   serverMode: 'embedded',   // 'embedded' (앱 내장 서버) | 'custom' (직접 지정한 주소)
   customServerUrl: '',
+  deployServerUrl: PUBLIC_DEPLOY_URL, // 빈 값이면 AI 서버(내장 서버 등)에 배포 → 내 PC에서만 열림
   model: null,              // null이면 서버 기본 모델
   apiKeyEnc: null,          // 사용자의 Claude API 키 (safeStorage로 암호화, base64)
   apiKeyPlain: null,        // 암호화를 쓸 수 없는 환경에서만 사용
@@ -110,6 +113,7 @@ function publicSettings() {
     serverUrl: serverUrl(),
     embedded: embedded.status(),
     defaultModel: DEFAULT_MODEL,
+    publicDeployUrl: PUBLIC_DEPLOY_URL,
     version: app.getVersion(),
     platform: process.platform
   };
@@ -575,6 +579,10 @@ function registerIpc() {
     partial = partial || {};
     if (['embedded', 'custom'].includes(partial.serverMode)) allowed.serverMode = partial.serverMode;
     if (typeof partial.customServerUrl === 'string') allowed.customServerUrl = partial.customServerUrl.trim().replace(/\/+$/, '');
+    if (typeof partial.deployServerUrl === 'string') {
+      const d = partial.deployServerUrl.trim().replace(/\/+$/, '');
+      if (!d || /^https?:\/\//i.test(d)) allowed.deployServerUrl = d;
+    }
     // 1.0 호환: serverUrl을 주면 직접 지정 주소로 간주
     if (typeof partial.serverUrl === 'string') {
       allowed.serverMode = 'custom';
@@ -709,7 +717,7 @@ function registerIpc() {
 
   ipcMain.handle('deploy', async () => {
     if (!projectRoot) throw new Error('프로젝트가 열려 있지 않습니다.');
-    const url = serverUrl();
+    const url = settings.deployServerUrl || serverUrl();
     const files = await collectFiles(['index.html'], { maxFiles: 500, maxFileSize: 2 * 1024 * 1024, maxTotal: 20 * 1024 * 1024, includeBinary: true });
     if (!files.length) throw new Error('배포할 파일이 없습니다.');
     let res;

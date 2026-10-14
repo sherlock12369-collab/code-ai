@@ -85,6 +85,8 @@ interface RequestOptions {
   path: string;
   /** 지정하면 이 키를, 아니면 저장된 키를 x-api-key 헤더로 보낸다 (/api/chat, /api/check-key만) */
   key?: string;
+  /** 지정하면 codeai.serverUrl 대신 이 서버로 보낸다 (배포 서버) */
+  base?: string;
   body?: unknown;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -93,11 +95,12 @@ interface RequestOptions {
 }
 
 function request(opts: RequestOptions): void {
+  const base = opts.base || getServerUrl();
   let url: URL;
   try {
-    url = new URL(getServerUrl() + opts.path);
+    url = new URL(base + opts.path);
   } catch {
-    opts.onError(new ServerError('서버 주소 형식이 올바르지 않습니다: ' + getServerUrl()));
+    opts.onError(new ServerError('서버 주소 형식이 올바르지 않습니다: ' + base));
     return;
   }
   const lib = url.protocol === 'https:' ? https : http;
@@ -143,12 +146,20 @@ function readBody(res: http.IncomingMessage): Promise<string> {
   });
 }
 
-function jsonRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = 60000, key?: string): Promise<T> {
+function jsonRequest<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  timeoutMs = 60000,
+  key?: string,
+  base?: string
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     request({
       method,
       path,
       key,
+      base,
       body,
       timeoutMs,
       onError: reject,
@@ -193,7 +204,9 @@ export async function checkKey(key: string): Promise<{ ok: boolean; error?: stri
 }
 
 export function deploy(name: string, files: FilePayload[]): Promise<{ url: string }> {
-  return jsonRequest('POST', '/api/deploy', { name, files }, 120000);
+  // 공용 배포 서버(공유 링크). 비워 두면 codeai.serverUrl 서버에 배포한다.
+  const deployBase = (vscode.workspace.getConfiguration('codeai').get<string>('deployServerUrl') || '').trim().replace(/\/+$/, '');
+  return jsonRequest('POST', '/api/deploy', { name, files }, 120000, undefined, deployBase || undefined);
 }
 
 /**

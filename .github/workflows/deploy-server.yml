@@ -1,0 +1,31 @@
+name: 배포 서버 업데이트 (Fly.io)
+
+# server/ 가 바뀌면 공용 배포 서버(code-ai-sites.fly.dev)를 다시 배포한다.
+# 저장소 Secrets에 FLY_API_TOKEN 이 있어야 한다 (flyctl tokens create deploy -a code-ai-sites).
+on:
+  push:
+    branches: [main]
+    paths: ['server/**', '.github/workflows/deploy-server.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm test
+        working-directory: server
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+      - run: flyctl deploy --remote-only
+        if: env.FLY_API_TOKEN != ''
+        working-directory: server

@@ -900,7 +900,8 @@
     try {
       const r = await api.deploy();
       $('#deploy-url').value = r.url;
-      $('#deploy-meta').textContent = `파일 ${r.count}개 업로드됨`;
+      const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/)/i.test(r.url);
+      $('#deploy-meta').textContent = `파일 ${r.count}개 업로드됨 · ${local ? '이 링크는 내 PC에서만 열립니다 (설정에서 공유 링크를 켤 수 있어요)' : '누구나 열 수 있는 공유 링크입니다'}`;
       $('#deploy-result').hidden = false;
     } catch (err) {
       $('#deploy-error').textContent = '배포 실패: ' + cleanErr(err);
@@ -1037,6 +1038,7 @@
     setModel = state.settings.model || null;
     $('#set-server').value = state.settings.customServerUrl || '';
     $('#set-version').textContent = state.settings.version;
+    $('#set-public-deploy').checked = !!state.settings.deployServerUrl;
     setTheme = state.settings.theme;
     document.querySelectorAll('#set-theme button').forEach((b) => b.classList.toggle('active', b.dataset.value === setTheme));
     applyServerModeUi();
@@ -1123,6 +1125,7 @@
       serverMode: setServerMode,
       customServerUrl: url,
       model: setModel || null,
+      deployServerUrl: $('#set-public-deploy').checked ? (state.settings.deployServerUrl || state.settings.publicDeployUrl) : '',
       theme: setTheme
     });
     closeModal('#modal-settings');
