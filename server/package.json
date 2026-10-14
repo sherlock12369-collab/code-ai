@@ -1,7 +1,7 @@
 {
   "name": "code-ai-server",
-  "version": "1.0.0",
-  "description": "Code AI 서버 — Ollama 기반 코딩 AI (외부 API 미사용)",
+  "version": "1.1.0",
+  "description": "Code AI 서버 — Claude API 기반 코딩 AI (사용자 본인의 API 키 사용)",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -12,5 +12,8 @@
     "node": ">=18"
   },
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0"
+  }
 }

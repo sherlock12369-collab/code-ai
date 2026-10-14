@@ -67,13 +67,14 @@
   function closeModal(id) {
     $(id).hidden = true;
   }
+  const STICKY_MODALS = ['modal-prompt', 'modal-setup'];
   document.querySelectorAll('.modal').forEach((m) => {
-    m.addEventListener('mousedown', (e) => { if (e.target === m && m.id !== 'modal-prompt') m.hidden = true; });
+    m.addEventListener('mousedown', (e) => { if (e.target === m && !STICKY_MODALS.includes(m.id)) m.hidden = true; });
     m.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { m.hidden = true; }));
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      const open = [...document.querySelectorAll('.modal')].find((m) => !m.hidden && m.id !== 'modal-prompt');
+      const open = [...document.querySelectorAll('.modal')].find((m) => !m.hidden && !STICKY_MODALS.includes(m.id));
       if (open) open.hidden = true;
       hideContextMenu();
     }
@@ -669,6 +670,9 @@
       inner += `<div class="bubble">${esc(m.content)}</div>`;
     } else {
       inner += `<div class="bubble">${m.error ? esc(m.content) : renderAnswer(m.content || '', m.streaming)}</div>`;
+      if (m.needsKey) {
+        inner += `<div class="msg-actions"><button class="btn small primary" data-key>Claude API 키 입력</button></div>`;
+      }
       if (m.files && m.files.length) {
         inner += '<div class="file-events">' + m.files.map((f) =>
           `<button class="file-ev${f.ok ? '' : ' fail'}" data-path="${esc(f.path)}" title="${esc(f.ok ? '편집기에서 열기' : (f.message || '실패'))}">${f.ok ? ICON.check : ICON.x}${esc(f.path)}</button>`).join('') + '</div>';
@@ -681,6 +685,8 @@
     el.querySelectorAll('.file-ev:not(.fail)').forEach((b) => { b.onclick = () => onTreeFileClick(b.dataset.path); });
     const undo = el.querySelector('[data-undo]');
     if (undo) undo.onclick = () => restoreSnapshot(undo.dataset.undo);
+    const keyBtn = el.querySelector('[data-key]');
+    if (keyBtn) keyBtn.onclick = () => { showSettings(); $('#set-key').focus(); };
     return el;
   }
 
@@ -796,6 +802,7 @@
       } else {
         m.content += `\n\n⚠️ ${ev.message}`;
       }
+      if (ev.needsKey) m.needsKey = true;
       if (ev.unreachable) setServerState({ ok: false, message: ev.message });
       finishChat(idx, ev.aborted ? '중지됨' : '오류');
     } else if (ev.type === 'done') {
@@ -965,15 +972,77 @@
     }
   };
 
+  // ───────────────────────── 모델 목록 (설정 · 설정 도우미 공용) ─────────────────────────
+  // models: [{ id, label, price, recommended }]
+  function renderModelList(host, models, selected, onSelect, { disabled = false } = {}) {
+    host.innerHTML = '';
+    for (const m of models) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'model-card' + (m.id === selected ? ' selected' : '');
+      b.dataset.id = m.id;
+      b.disabled = disabled;
+      b.innerHTML = `<span class="radio"></span>
+        <span class="model-info"><b>${esc(m.label || m.id)}</b>
+        <small>${esc(m.id)}${m.price ? ' · ' + esc(m.price) : ''}</small></span>`;
+      b.onclick = () => {
+        host.querySelectorAll('.model-card').forEach((c) => c.classList.toggle('selected', c === b));
+        onSelect(m);
+      };
+      host.appendChild(b);
+    }
+  }
+
   // ───────────────────────── 설정 ─────────────────────────
   let setTheme = 'system';
-  function showSettings() {
-    $('#set-server').value = state.settings.serverUrl;
-    $('#set-version').textContent = state.settings.version;
+  let setServerMode = 'embedded';
+  let setModel = null;
+
+  function applyServerModeUi() {
+    document.querySelectorAll('#set-server-mode button').forEach((b) => b.classList.toggle('active', b.dataset.value === setServerMode));
+    $('#set-custom-row').hidden = setServerMode !== 'custom';
+    const emb = state.settings.embedded || {};
+    $('#set-embedded-info').hidden = setServerMode !== 'embedded';
+    $('#set-embedded-info').textContent = emb.running
+      ? `앱에 들어 있는 AI 서버를 사용합니다 · ${emb.url}`
+      : `내장 서버가 실행되지 않았습니다${emb.error ? ': ' + emb.error : ''}`;
     $('#set-test-result').textContent = '';
+  }
+
+  function applyKeyUi() {
+    const s = state.settings;
+    $('#set-key-status').textContent = s.hasApiKey ? `저장된 키: ${s.apiKeyHint}` : '저장된 키가 없습니다. AI를 쓰려면 키를 입력하세요.';
+    $('#set-key-status').style.color = s.hasApiKey ? '' : 'var(--danger)';
+    $('#set-key-clear').hidden = !s.hasApiKey;
+    $('#set-key').value = '';
+    $('#set-key-result').textContent = '';
+  }
+
+  async function loadSettingsModels() {
+    const host = $('#set-models');
+    host.innerHTML = '<div class="muted small"><span class="spinner inline"></span> 모델 목록 확인 중…</div>';
+    let r;
+    try {
+      r = await api.models.list();
+    } catch (err) {
+      host.innerHTML = `<div class="error">${esc(cleanErr(err))}</div>`;
+      return;
+    }
+    if (!setModel) setModel = r.selected || null;
+    renderModelList(host, r.models, setModel || r.defaultModel, (m) => { setModel = m.id; });
+  }
+
+  function showSettings() {
+    setServerMode = state.settings.serverMode || 'embedded';
+    setModel = state.settings.model || null;
+    $('#set-server').value = state.settings.customServerUrl || '';
+    $('#set-version').textContent = state.settings.version;
     setTheme = state.settings.theme;
     document.querySelectorAll('#set-theme button').forEach((b) => b.classList.toggle('active', b.dataset.value === setTheme));
+    applyServerModeUi();
+    applyKeyUi();
     openModal('#modal-settings');
+    loadSettingsModels();
   }
   document.querySelectorAll('#set-theme button').forEach((b) => {
     b.onclick = () => {
@@ -981,31 +1050,268 @@
       document.querySelectorAll('#set-theme button').forEach((x) => x.classList.toggle('active', x === b));
     };
   });
+  document.querySelectorAll('#set-server-mode button').forEach((b) => {
+    b.onclick = () => {
+      setServerMode = b.dataset.value;
+      applyServerModeUi();
+      if (setServerMode === 'custom') $('#set-server').focus();
+    };
+  });
   $('#set-test').onclick = async () => {
-    const prevUrl = state.settings.serverUrl;
+    const prev = { serverMode: state.settings.serverMode, customServerUrl: state.settings.customServerUrl };
+    const url = $('#set-server').value.trim();
+    if (!url) { $('#set-test-result').textContent = '서버 주소를 입력해 주세요.'; return; }
+    $('#set-test-result').style.color = '';
     $('#set-test-result').textContent = '확인 중…';
-    state.settings = await api.settings.set({ serverUrl: $('#set-server').value });
+    state.settings = await api.settings.set({ serverMode: 'custom', customServerUrl: url });
     const h = await api.server.health();
-    $('#set-test-result').textContent = h.ok ? `연결됨 ✓  모델: ${h.model || '-'} · 서버 버전 ${h.version || '-'}` : h.message;
+    $('#set-test-result').textContent = h.ok ? `연결됨 ✓  서버 기본 모델: ${h.serverModel || '-'} · 서버 버전 ${h.version || '-'}` : h.message;
     $('#set-test-result').style.color = h.ok ? 'var(--ok)' : 'var(--danger)';
-    state.settings = await api.settings.set({ serverUrl: prevUrl });
+    state.settings = await api.settings.set(prev);
   };
+
+  // 키 확인 + 저장 (설정 창, 설정 도우미 공용). 성공하면 true.
+  async function saveApiKey(key, resultEl) {
+    resultEl.style.color = '';
+    resultEl.textContent = '키를 확인하는 중…';
+    const r = await api.apiKey.set(key);
+    if (!r.ok) {
+      resultEl.textContent = r.error;
+      resultEl.style.color = 'var(--danger)';
+      return false;
+    }
+    state.settings = r.settings;
+    resultEl.textContent = '키가 확인되어 저장되었습니다 ✓';
+    resultEl.style.color = 'var(--ok)';
+    checkServer();
+    return true;
+  }
+  $('#set-key-save').onclick = async () => {
+    const btn = $('#set-key-save');
+    btn.disabled = true;
+    try {
+      if (await saveApiKey($('#set-key').value, $('#set-key-result'))) {
+        const msg = $('#set-key-result').textContent;
+        applyKeyUi();
+        $('#set-key-result').textContent = msg;
+        $('#set-key-result').style.color = 'var(--ok)';
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  $('#set-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#set-key-save').click(); });
+  $('#set-key-clear').onclick = async () => {
+    if (!confirm('저장된 Claude API 키를 삭제할까요? 삭제하면 다시 입력할 때까지 AI를 쓸 수 없습니다.')) return;
+    state.settings = await api.apiKey.clear();
+    applyKeyUi();
+    checkServer();
+  };
+  $('#set-key-console').onclick = (e) => { e.preventDefault(); api.apiKey.openConsole(); };
+  $('#set-open-setup').onclick = () => { closeModal('#modal-settings'); openSetup(); };
   $('#set-save').onclick = async () => {
-    state.settings = await api.settings.set({ serverUrl: $('#set-server').value, theme: setTheme });
+    const url = $('#set-server').value.trim();
+    if (setServerMode === 'custom' && !url) {
+      $('#set-test-result').textContent = '직접 지정하려면 서버 주소를 입력해 주세요.';
+      $('#set-test-result').style.color = 'var(--danger)';
+      return;
+    }
+    // 키를 입력만 하고 "확인 후 저장"을 누르지 않았으면 여기서 저장
+    const typedKey = $('#set-key').value.trim();
+    if (typedKey && !(await saveApiKey(typedKey, $('#set-key-result')))) return;
+    state.settings = await api.settings.set({
+      serverMode: setServerMode,
+      customServerUrl: url,
+      model: setModel || null,
+      theme: setTheme
+    });
     closeModal('#modal-settings');
     applyTheme();
     checkServer();
-    checkUpdates();
   };
+
+  // ───────────────────────── 처음 실행 설정 도우미 ─────────────────────────
+  const setup = { running: false, model: null, models: [], waiting: null, from: 'server' };
+  const STEPS = ['server', 'key', 'model'];
+  const stepEl = (name) => document.querySelector(`.setup-step[data-step="${name}"]`);
+
+  function setStep(name, status, detail) {
+    const el = stepEl(name);
+    el.dataset.status = status;
+    if (detail !== undefined) el.querySelector('.step-detail').textContent = detail;
+  }
+  function setStepActions(name, buttons) {
+    const host = stepEl(name).querySelector('.step-actions');
+    host.innerHTML = '';
+    for (const b of buttons || []) {
+      const btn = document.createElement('button');
+      btn.className = 'btn small' + (b.primary ? ' primary' : '');
+      btn.textContent = b.label;
+      btn.onclick = b.onClick;
+      host.appendChild(btn);
+    }
+  }
+  function setPrimary(label, enabled = true) {
+    $('#setup-primary').textContent = label;
+    $('#setup-primary').disabled = !enabled;
+  }
+
+  // 사용자가 "계속"(setup-primary)을 누를 때까지 기다린다.
+  function waitPrimary(label) {
+    setPrimary(label, true);
+    return new Promise((resolve) => { setup.waiting = resolve; setup.cancelWait = resolve; }).then(() => {
+      setup.waiting = null;
+      setup.cancelWait = null;
+      if (setup.cancelled) throw new SetupStop('cancelled');
+      setPrimary('진행 중…', false);
+    });
+  }
+
+  class SetupStop extends Error {}
+
+  async function failStep(name, message) {
+    setStep(name, 'error', message);
+    setPrimary('다시 시도', true);
+    setup.from = name;
+    throw new SetupStop(message);
+  }
+
+  const KEY_DETAIL = 'console.anthropic.com 에서 발급받은 본인의 API 키(sk-ant-…)를 붙여 넣으세요. 요금은 키 주인의 계정에 청구됩니다.';
+
+  function openSetup() {
+    if (setup.running) { openModal('#modal-setup'); return; }
+    for (const s of STEPS) { setStep(s, 'pending'); setStepActions(s, []); }
+    stepEl('server').querySelector('.step-detail').textContent = '앱에 들어 있는 AI 서버를 실행합니다.';
+    stepEl('key').querySelector('.step-detail').textContent = KEY_DETAIL;
+    stepEl('model').querySelector('.step-detail').textContent = '사용할 Claude 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.';
+    $('#setup-models').hidden = true;
+    $('#setup-key-row').hidden = true;
+    $('#setup-key').value = '';
+    setup.from = 'server';
+    setup.done = false;
+    setPrimary('시작', true);
+    $('#setup-skip').textContent = '건너뛰기';
+    openModal('#modal-setup');
+  }
+  window.__codeaiOpenSetup = openSetup; // 개발/테스트용
+
+  async function runSetup() {
+    if (setup.running) return;
+    setup.running = true;
+    setup.cancelled = false;
+    setPrimary('진행 중…', false);
+    try {
+      const start = STEPS.indexOf(setup.from);
+      for (const s of STEPS.slice(start)) { setStep(s, 'pending'); setStepActions(s, []); }
+      if (start <= 0) await setupServer();
+      if (start <= 1) await setupKey();
+      await setupModel();
+      setup.done = true;
+      state.settings = await api.settings.set({ setupDone: true });
+      setPrimary('시작하기', true);
+      $('#setup-skip').textContent = '닫기';
+      checkServer();
+    } catch (err) {
+      if (!(err instanceof SetupStop)) {
+        console.error(err);
+        setPrimary('다시 시도', true);
+      }
+    } finally {
+      setup.running = false;
+    }
+  }
+
+  async function setupServer() {
+    if (state.settings.serverMode === 'custom') {
+      setStep('server', 'running', '설정된 AI 서버에 연결하는 중…');
+      const h = await api.server.health();
+      if (!h.ok) return failStep('server', h.message || 'AI 서버에 연결할 수 없습니다.');
+      setStep('server', 'done', `연결됨 · ${h.url}`);
+      return;
+    }
+    setStep('server', 'running', '내장 AI 서버를 시작하는 중…');
+    const r = await api.server.startEmbedded();
+    if (!r.running || !r.healthy) return failStep('server', `AI 서버를 시작하지 못했습니다. ${r.error || ''}`.trim());
+    state.settings = await api.settings.get();
+    setStep('server', 'done', `실행 중 · ${r.url}`);
+  }
+
+  async function setupKey() {
+    const row = $('#setup-key-row');
+    const detail = stepEl('key').querySelector('.step-detail');
+    if (state.settings.hasApiKey) {
+      setStep('key', 'waiting', `저장된 키(${state.settings.apiKeyHint})를 사용합니다. 바꾸려면 새 키를 붙여 넣으세요.`);
+    } else {
+      setStep('key', 'waiting', KEY_DETAIL);
+    }
+    setStepActions('key', [{ label: '키 발급 받기 (console.anthropic.com)', onClick: () => api.apiKey.openConsole() }]);
+    row.hidden = false;
+    $('#setup-key').focus();
+    for (;;) {
+      await waitPrimary('키 확인');
+      const key = $('#setup-key').value.trim();
+      if (!key && state.settings.hasApiKey) break;
+      setStep('key', 'running');
+      if (await saveApiKey(key, detail)) break;
+      setStep('key', 'error');
+    }
+    row.hidden = true;
+    setStepActions('key', []);
+    setStep('key', 'done', `키 확인됨 · ${state.settings.apiKeyHint}`);
+  }
+
+  async function setupModel() {
+    setStep('model', 'running', '모델 목록을 불러오는 중…');
+    const r = await api.models.list();
+    setup.models = r.models;
+    setup.model = setup.model || state.settings.model || r.defaultModel;
+    if (!r.models.some((m) => m.id === setup.model)) setup.model = r.defaultModel;
+    const host = $('#setup-models');
+    host.hidden = false;
+    renderModelList(host, r.models, setup.model, (m) => { setup.model = m.id; });
+    setStep('model', 'waiting', '사용할 모델을 고르세요. 가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.');
+    await waitPrimary('이 모델로 시작');
+    state.settings = await api.settings.set({ model: setup.model });
+    const info = setup.models.find((m) => m.id === setup.model) || {};
+    host.hidden = true;
+    setStep('model', 'done', `${info.label || setup.model} — 준비 완료!`);
+  }
+
+  $('#setup-key').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && typeof setup.waiting === 'function') setup.waiting();
+  });
+  $('#setup-primary').onclick = () => {
+    if (setup.waiting && typeof setup.waiting === 'function') return setup.waiting();
+    if (setup.done) { closeModal('#modal-setup'); return; }
+    runSetup();
+  };
+  $('#setup-skip').onclick = async () => {
+    if (setup.running && !confirm('설정을 중단할까요? 나중에 설정 → "설정 도우미 다시 실행"에서 이어서 할 수 있습니다.')) return;
+    if (setup.running) {
+      setup.cancelled = true;
+      if (setup.cancelWait) setup.cancelWait();
+    }
+    if (!state.settings.setupDone) state.settings = await api.settings.set({ setupDone: true });
+    closeModal('#modal-setup');
+    if (!setup.done) toast('Claude API 키는 설정(⚙) 또는 도움말 → 설정 도우미에서 입력할 수 있습니다.', '', 4000);
+  };
+
+  api.onSettingsChanged((s) => { state.settings = s; });
 
   // ───────────────────────── 서버 상태 / 업데이트 ─────────────────────────
   let bannerDismissed = false;
   function setServerState(h) {
+    // 서버는 살아 있어도 Claude API 키가 없으면 AI를 쓸 수 없다.
+    if (h.ok && h.hasApiKey === false) {
+      h = { ...h, ok: false, message: 'Claude API 키가 없습니다. 설정에서 본인의 API 키를 입력하세요.' };
+    }
     state.serverOk = h.ok;
     const el = $('#server-status');
     el.className = 'server-status ' + (h.ok ? 'ok' : 'bad');
-    $('#server-status-text').textContent = h.ok ? 'AI 연결됨' : 'AI 서버 연결 안 됨';
-    el.title = h.ok ? `AI 서버 연결됨 · ${h.url || ''} · 모델: ${h.model || '-'}` : h.message || 'AI 서버에 연결할 수 없습니다.';
+    $('#server-status-text').textContent = h.ok ? 'AI 연결됨' : h.hasApiKey === false ? 'API 키 필요' : 'AI 서버 연결 안 됨';
+    el.title = h.ok
+      ? `AI 서버 연결됨 · ${h.embedded ? '내장 서버 ' : ''}${h.url || ''} · 모델: ${h.model || '-'}`
+      : h.message || 'AI 서버에 연결할 수 없습니다.';
     if (h.ok) {
       $('#server-banner').hidden = true;
       bannerDismissed = false;
@@ -1028,18 +1334,42 @@
   $('#btn-server-settings').onclick = showSettings;
   $('#btn-server-close').onclick = () => { bannerDismissed = true; $('#server-banner').hidden = true; };
 
+  // Windows: 앱 안에서 받은 업데이트가 준비되면 "지금 다시 시작" 배너
+  function showUpdateReady(version) {
+    state.update = { version, native: true, ready: true };
+    $('#update-text').textContent = `새 버전 ${version} 준비됨 — 다시 시작하면 설치됩니다`;
+    $('#btn-update-download').hidden = true;
+    $('#btn-update-restart').hidden = false;
+    $('#update-banner').hidden = false;
+  }
+
   async function checkUpdates(manual) {
     const u = await api.updates.check();
-    if (u && u.available) {
+    if (u && u.available && u.native) {
+      if (u.status === 'ready') showUpdateReady(u.version);
+      else if (manual) toast(`새 버전 ${u.version}을(를) 백그라운드에서 받는 중입니다. 다 받으면 알려 드릴게요.`, '', 4000);
+    } else if (u && u.available) {
+      if (state.update && state.update.ready) return;
       state.update = u;
       $('#update-text').textContent = `새 버전 ${u.version} 업데이트가 있습니다` + (u.notes ? ` — ${u.notes}` : '');
+      $('#btn-update-download').hidden = false;
+      $('#btn-update-restart').hidden = true;
       $('#update-banner').hidden = false;
       $('#btn-update-download').disabled = !u.url;
     } else if (manual) {
       toast(`최신 버전입니다 (${state.settings.version}).`);
     }
   }
+  api.updates.onState((st) => {
+    if (st.status === 'ready' && st.version) showUpdateReady(st.version);
+  });
   $('#btn-update-download').onclick = () => { if (state.update && state.update.url) api.shell.openExternal(state.update.url); };
+  $('#btn-update-restart').onclick = async () => {
+    if ([...state.openFiles.values()].some((f) => f.dirty) && !confirm('저장하지 않은 파일이 있습니다. 그래도 다시 시작할까요?')) return;
+    for (const f of state.openFiles.values()) f.dirty = false; // beforeunload 경고 방지
+    const ok = await api.updates.install();
+    if (!ok) toast('업데이트를 설치할 수 없습니다. 앱을 종료하면 자동으로 설치됩니다.', 'error');
+  };
   $('#btn-update-close').onclick = () => { $('#update-banner').hidden = true; };
 
   // ───────────────────────── 버튼 / 메뉴 연결 ─────────────────────────
@@ -1068,7 +1398,8 @@
       'toggle-theme': toggleTheme,
       'refresh-preview': reloadPreview,
       history: showHistory,
-      'check-updates': () => checkUpdates(true)
+      'check-updates': () => checkUpdates(true),
+      setup: openSetup
     };
     if (actions[name]) actions[name]();
   });
@@ -1110,7 +1441,10 @@
     window.__codeaiReady = true;
     checkServer();
     checkUpdates();
+    api.updates.state().then((st) => { if (st && st.status === 'ready' && st.version) showUpdateReady(st.version); }).catch(() => {});
     setInterval(checkServer, 30000);
+    // 처음 실행: AI 준비 설정 도우미
+    if (!state.settings.setupDone) openSetup();
   }
 
   init();

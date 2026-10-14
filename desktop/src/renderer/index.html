@@ -49,6 +49,7 @@
     <span id="update-text">새 버전 업데이트가 있습니다</span>
     <span class="banner-actions">
       <button class="btn small primary" id="btn-update-download">다운로드</button>
+      <button class="btn small primary" id="btn-update-restart" hidden>지금 다시 시작</button>
       <button class="icon-btn small" id="btn-update-close" title="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </span>
   </div>
@@ -56,7 +57,7 @@
     <span id="server-banner-text">AI 서버에 연결할 수 없습니다.</span>
     <span class="banner-actions">
       <button class="btn small" id="btn-server-retry">다시 시도</button>
-      <button class="btn small" id="btn-server-settings">서버 설정</button>
+      <button class="btn small" id="btn-server-settings">설정 열기</button>
       <button class="icon-btn small" id="btn-server-close" title="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </span>
   </div>
@@ -174,10 +175,25 @@
     <div class="modal-card">
       <div class="modal-head"><h2>설정</h2><button class="icon-btn" data-close><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
       <div class="modal-body">
-        <label class="field"><span>AI 서버 주소</span>
-          <div class="row"><input id="set-server" type="text" spellcheck="false" placeholder="http://localhost:8787"><button class="btn" id="set-test">연결 테스트</button></div>
+        <div class="field"><span>AI 서버</span>
+          <div class="segmented" id="set-server-mode">
+            <button data-value="embedded">내장 서버 (권장)</button><button data-value="custom">직접 지정</button>
+          </div>
+          <small id="set-embedded-info" class="muted"></small>
+          <div class="row" id="set-custom-row"><input id="set-server" type="text" spellcheck="false" placeholder="http://서버주소:8787"><button class="btn" id="set-test">연결 테스트</button></div>
           <small id="set-test-result" class="muted"></small>
-        </label>
+        </div>
+        <div class="field"><span>Claude API 키</span>
+          <small id="set-key-status" class="muted"></small>
+          <div class="row"><input id="set-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk-ant-…"><button class="btn" id="set-key-save">확인 후 저장</button><button class="btn ghost" id="set-key-clear">삭제</button></div>
+          <small id="set-key-result" class="muted"></small>
+          <small class="muted">본인의 키를 사용하며, 요금은 키 주인의 Anthropic 계정에 청구됩니다. 키는 이 PC에만 암호화해 저장됩니다. <a href="#" id="set-key-console">키 발급 받기</a></small>
+        </div>
+        <div class="field"><span>AI 모델 (Claude)</span>
+          <div id="set-models" class="model-list"></div>
+          <small class="muted">가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.</small>
+        </div>
+        <div class="row"><button class="btn" id="set-open-setup">설정 도우미 다시 실행</button><small class="muted">API 키 입력과 모델 선택을 다시 진행합니다.</small></div>
         <div class="field"><span>테마</span>
           <div class="segmented" id="set-theme">
             <button data-value="system">시스템 설정</button><button data-value="light">라이트</button><button data-value="dark">다크</button>
@@ -186,6 +202,53 @@
         <p class="muted small">버전 <span id="set-version"></span></p>
       </div>
       <div class="modal-foot"><button class="btn" data-close>취소</button><button class="btn primary" id="set-save">저장</button></div>
+    </div>
+  </div>
+
+  <!-- 모달: 처음 실행 설정 도우미 -->
+  <div class="modal" id="modal-setup" hidden>
+    <div class="modal-card wide setup-card">
+      <div class="modal-head">
+        <div>
+          <h2>AI 준비하기</h2>
+          <p class="muted small setup-sub">Code AI는 Claude AI를 사용합니다. 본인의 Claude API 키를 한 번만 입력하면 바로 쓸 수 있습니다. (인터넷 연결 필요)</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <ol class="setup-steps">
+          <li class="setup-step" data-step="server">
+            <span class="step-icon"></span>
+            <div class="step-body">
+              <div class="step-title">AI 서버 시작</div>
+              <div class="step-detail">앱에 들어 있는 AI 서버를 실행합니다.</div>
+              <div class="step-actions"></div>
+            </div>
+          </li>
+          <li class="setup-step" data-step="key">
+            <span class="step-icon"></span>
+            <div class="step-body">
+              <div class="step-title">Claude API 키 입력</div>
+              <div class="step-detail">console.anthropic.com 에서 발급받은 본인의 API 키(sk-ant-…)를 붙여 넣으세요. 요금은 키 주인의 계정에 청구됩니다.</div>
+              <div class="row" id="setup-key-row" hidden><input id="setup-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk-ant-…"></div>
+              <div class="step-actions"></div>
+            </div>
+          </li>
+          <li class="setup-step" data-step="model">
+            <span class="step-icon"></span>
+            <div class="step-body">
+              <div class="step-title">AI 모델 선택</div>
+              <div class="step-detail">사용할 Claude 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.</div>
+              <div id="setup-models" class="model-list" hidden></div>
+              <div class="step-actions"></div>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="modal-foot setup-foot">
+        <button class="btn ghost" id="setup-skip">건너뛰기</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="setup-primary">시작</button>
+      </div>
     </div>
   </div>
 

@@ -22,6 +22,7 @@ export interface ChatRequest {
   messages: ChatMessage[];
   files?: FilePayload[];
   selection?: Selection;
+  model?: string;
 }
 
 export type ChatEvent =
@@ -44,6 +45,35 @@ export function getServerUrl(): string {
   return raw.replace(/\/+$/, '');
 }
 
+export const DEFAULT_MODEL = 'claude-opus-5-5';
+
+// 사용자의 Claude API 키 (SecretStorage에서 읽어 extension.ts가 넣어 준다). 서버에 x-api-key 헤더로 보낸다.
+let apiKey: string | undefined;
+export function setApiKey(key: string | undefined): void {
+  apiKey = key || undefined;
+}
+export function hasApiKey(): boolean {
+  return !!apiKey;
+}
+
+export const NO_KEY_MESSAGE = 'Claude API 키가 없습니다. 명령 "Code AI: Claude API 키 입력"으로 본인의 키를 입력해 주세요.';
+
+/** 설정 "codeai.model" 에서 고른 모델 id */
+export function getModel(): string {
+  return vscode.workspace.getConfiguration('codeai').get<string>('model') || DEFAULT_MODEL;
+}
+
+export interface ModelInfo {
+  id: string;
+  label: string;
+  /** 100만 토큰당 입력 / 출력 요금 (USD) */
+  price: string;
+}
+
+export function listModels(): Promise<{ models: ModelInfo[]; default?: string }> {
+  return jsonRequest('GET', '/api/models', undefined, 8000);
+}
+
 function isConnectionError(err: NodeJS.ErrnoException): boolean {
   return ['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'EHOSTUNREACH', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH'].includes(
     err.code || ''
@@ -53,6 +83,8 @@ function isConnectionError(err: NodeJS.ErrnoException): boolean {
 interface RequestOptions {
   method: 'GET' | 'POST';
   path: string;
+  /** 지정하면 이 키를, 아니면 저장된 키를 x-api-key 헤더로 보낸다 (/api/chat, /api/check-key만) */
+  key?: string;
   body?: unknown;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -76,6 +108,9 @@ function request(opts: RequestOptions): void {
       method: opts.method,
       headers: {
         Accept: opts.path === '/api/chat' ? 'text/event-stream' : 'application/json',
+        ...((opts.path === '/api/chat' || opts.path === '/api/check-key') && (opts.key || apiKey)
+          ? { 'x-api-key': (opts.key || apiKey) as string }
+          : {}),
         ...(data ? { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': data.length } : {}),
       },
     },
@@ -108,11 +143,12 @@ function readBody(res: http.IncomingMessage): Promise<string> {
   });
 }
 
-function jsonRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = 60000): Promise<T> {
+function jsonRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = 60000, key?: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     request({
       method,
       path,
+      key,
       body,
       timeoutMs,
       onError: reject,
@@ -147,6 +183,15 @@ export function health(): Promise<{ ok: boolean; model?: string; version?: strin
   return jsonRequest('GET', '/api/health', undefined, 5000);
 }
 
+/** 키가 올바른지 서버로 확인한다 (요금 없음). */
+export async function checkKey(key: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    return await jsonRequest<{ ok: boolean; error?: string }>('POST', '/api/check-key', {}, 20000, key);
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
 export function deploy(name: string, files: FilePayload[]): Promise<{ url: string }> {
   return jsonRequest('POST', '/api/deploy', { name, files }, 120000);
 }
@@ -156,6 +201,9 @@ export function deploy(name: string, files: FilePayload[]): Promise<{ url: strin
  * 스트림이 끝나면 resolve 됩니다. 연결 실패는 ServerError 로 reject 됩니다.
  */
 export function streamChat(body: ChatRequest, onEvent: (ev: ChatEvent) => void, signal?: AbortSignal): Promise<void> {
+  if (!apiKey) {
+    return Promise.reject(new ServerError(NO_KEY_MESSAGE));
+  }
   return new Promise<void>((resolve, reject) => {
     request({
       method: 'POST',

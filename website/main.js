@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var REPO = 'sherlock12369-collab/code-ai';
   var RELEASE_API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
   var RELEASE_DL = 'https://github.com/' + REPO + '/releases/latest/download/';

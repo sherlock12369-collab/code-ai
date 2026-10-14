@@ -49,22 +49,28 @@ export function buildContext(files, selection) {
   return parts.join('\n\n');
 }
 
-// Ollama에 보낼 messages 배열을 만든다. 컨텍스트는 마지막 사용자 메시지 앞에 붙인다.
+// Claude Messages API에 보낼 { system, messages }를 만든다. 컨텍스트는 마지막 사용자 메시지 앞에 붙인다.
+// Claude는 user/assistant가 번갈아 나와야 하고, user로 시작해서 user로 끝나야 한다.
 export function buildMessages(messages, files, selection) {
-  const history = (Array.isArray(messages) ? messages : [])
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .map((m) => ({ role: m.role, content: m.content }));
+  const history = [];
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string' || !m.content.trim()) continue;
+    const last = history[history.length - 1];
+    if (last && last.role === m.role) last.content += `\n\n${m.content}`;
+    else history.push({ role: m.role, content: m.content });
+  }
+  while (history.length && history[0].role !== 'user') history.shift();
+  while (history.length && history[history.length - 1].role !== 'user') history.pop();
 
   const context = buildContext(files, selection);
   if (context) {
-    let idx = -1;
-    for (let i = history.length - 1; i >= 0; i--) if (history[i].role === 'user') { idx = i; break; }
-    if (idx >= 0) {
+    if (history.length) {
+      const idx = history.length - 1;
       history[idx] = { role: 'user', content: `${context}\n\n[요청]\n${history[idx].content}` };
     } else {
       history.push({ role: 'user', content: context });
     }
   }
 
-  return [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
+  return { system: SYSTEM_PROMPT, messages: history };
 }

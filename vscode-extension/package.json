@@ -2,7 +2,7 @@
   "name": "codeai",
   "displayName": "Code AI",
   "description": "AI로 코드를 짜는 도구 — 실시간 미리보기, 클릭 수정, 변경 기록, 원클릭 배포, 템플릿",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "codeai",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -81,6 +81,23 @@
         "command": "codeai.checkServer",
         "title": "서버 연결 확인",
         "category": "Code AI"
+      },
+      {
+        "command": "codeai.selectModel",
+        "title": "모델 선택",
+        "category": "Code AI",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "codeai.setApiKey",
+        "title": "Claude API 키 입력",
+        "category": "Code AI",
+        "icon": "$(key)"
+      },
+      {
+        "command": "codeai.clearApiKey",
+        "title": "Claude API 키 삭제",
+        "category": "Code AI"
       }
     ],
     "menus": {
@@ -127,7 +144,22 @@
         "codeai.serverUrl": {
           "type": "string",
           "default": "http://localhost:8787",
-          "description": "Code AI 서버 주소"
+          "description": "Code AI 서버 주소 (Code AI 데스크톱 앱을 켜 두면 내장 서버 http://localhost:8787 를 사용할 수 있습니다)"
+        },
+        "codeai.model": {
+          "type": "string",
+          "default": "claude-opus-5-5",
+          "enum": [
+            "claude-opus-5-5",
+            "claude-sonnet-5-5",
+            "claude-haiku-5-5"
+          ],
+          "enumDescriptions": [
+            "고품질 — Claude Opus 5.5 (추천) · 100만 토큰당 $4 / $20",
+            "균형 — Claude Sonnet 5.5 · 100만 토큰당 $2 / $10",
+            "빠름·저렴 — Claude Haiku 5.5 · 100만 토큰당 $0.10 / $0.50"
+          ],
+          "markdownDescription": "AI 답변에 사용할 Claude 모델. 본인의 Claude API 키가 필요합니다 (명령 **Code AI: Claude API 키 입력**). 요금은 키 주인의 Anthropic 계정에 청구됩니다."
         },
         "codeai.maxContextFiles": {
           "type": "number",

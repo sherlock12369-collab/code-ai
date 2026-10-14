@@ -18,12 +18,14 @@ jobs:
     strategy:
       matrix:
         include:
+          # Windows: 설치 파일 + 자동 업데이트(electron-updater)용 latest.yml, *.blockmap
           - os: windows-latest
             script: dist:win
-            pattern: desktop/dist/*.exe
+            pattern: desktop/dist/*.exe desktop/dist/*.blockmap desktop/dist/latest.yml
+          # macOS: 서명이 없어 자동 설치는 안 됨 → dmg (latest-mac.yml이 만들어지면 함께)
           - os: macos-latest
             script: dist:mac
-            pattern: desktop/dist/*.dmg
+            pattern: desktop/dist/*.dmg desktop/dist/latest-mac.yml
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ github.token }}
@@ -34,15 +36,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      # 내장 AI 서버의 의존성(Anthropic SDK)도 설치 파일에 들어간다
+      - run: npm ci --omit=dev
+        working-directory: server
       - run: npm ci
         working-directory: desktop
+      # 빌드가 스스로 릴리스에 올리지 않게 한다 (package.json 스크립트에 --publish never). 업로드는 아래 gh로.
       - run: npm run ${{ matrix.script }}
         working-directory: desktop
       - name: 릴리스에 업로드
         shell: bash
         run: |
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Code AI ${TAG#v}" --notes "Code AI ${TAG#v}"
-          gh release upload "$TAG" ${{ matrix.pattern }} --clobber
+          shopt -s nullglob
+          files=(${{ matrix.pattern }})
+          echo "업로드: ${files[*]}"
+          gh release upload "$TAG" "${files[@]}" --clobber
 
   vscode:
     runs-on: ubuntu-latest

@@ -49,10 +49,24 @@ contextBridge.exposeInMainWorld('codeai', {
   },
   deploy: () => ipcRenderer.invoke('deploy'),
   server: {
-    health: () => ipcRenderer.invoke('server:health')
+    health: () => ipcRenderer.invoke('server:health'),
+    startEmbedded: () => ipcRenderer.invoke('embedded:start')
   },
+  models: {
+    list: () => ipcRenderer.invoke('models:list')
+  },
+  // Claude API 키: 렌더러는 키를 넘기기만 하고, 저장된 키 원문은 받지 않는다.
+  apiKey: {
+    set: (key) => ipcRenderer.invoke('apikey:set', key),
+    clear: () => ipcRenderer.invoke('apikey:clear'),
+    openConsole: () => ipcRenderer.invoke('apikey:console')
+  },
+  onSettingsChanged: (cb) => on('settings:changed', cb),
   updates: {
-    check: () => ipcRenderer.invoke('updates:check')
+    check: () => ipcRenderer.invoke('updates:check'),
+    state: () => ipcRenderer.invoke('updates:state'),
+    install: () => ipcRenderer.invoke('updates:install'),
+    onState: (cb) => on('updates:state', cb)
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

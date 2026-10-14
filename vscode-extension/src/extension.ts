@@ -1,14 +1,19 @@
 import * as vscode from 'vscode';
-import { ServerError, UNREACHABLE_MESSAGE, health } from './api';
+import { ServerError, UNREACHABLE_MESSAGE, health, setApiKey } from './api';
 import { ChatViewProvider } from './chatView';
 import { deployWorkspace } from './deploy';
 import { HistoryStore } from './history';
+import { clearApiKey, ModelStatus, promptApiKey, SECRET_KEY, selectModel } from './models';
 import { PreviewManager, previewKind } from './preview';
 import { PreviewServer } from './previewServer';
 import { PENDING_PREVIEW_KEY, startFromTemplate } from './templates';
 import { getRoot, resolveInRoot } from './workspace';
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // 사용자의 Claude API 키는 VS Code 보안 저장소(SecretStorage)에 둔다.
+  setApiKey(await context.secrets.get(SECRET_KEY));
+  const modelStatus = new ModelStatus();
+  const askKey = () => promptApiKey(context, () => modelStatus.update());
   const history = new HistoryStore();
   const server = new PreviewServer(vscode.Uri.joinPath(context.extensionUri, 'media', 'inject.js'));
 
@@ -108,6 +113,17 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.showInformationMessage(msg);
       } catch (e: any) {
         vscode.window.showErrorMessage('되돌리기 실패: ' + (e?.message || e));
+      }
+    }),
+
+    modelStatus,
+    vscode.commands.registerCommand('codeai.selectModel', () => selectModel()),
+    vscode.commands.registerCommand('codeai.setApiKey', () => askKey()),
+    vscode.commands.registerCommand('codeai.clearApiKey', () => clearApiKey(context, () => modelStatus.update())),
+    context.secrets.onDidChange(async (ev) => {
+      if (ev.key === SECRET_KEY) {
+        setApiKey(await context.secrets.get(SECRET_KEY));
+        modelStatus.update();
       }
     }),
 

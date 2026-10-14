@@ -1,24 +1,59 @@
 'use strict';
 // Code AI 데스크톱 — 메인 프로세스
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeTheme, clipboard, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { PreviewServer } = require('./server');
 const history = require('./history');
+const { EmbeddedServer } = require('./embedded');
+const updater = require('./updater');
 
 const IS_SMOKE = process.argv.includes('--smoke-test');
 const DEFAULT_SERVER = 'http://localhost:8787';
+// AI는 Claude API만 사용한다.
+const MODEL_RE = /^claude-[a-z0-9.-]+$/;
+const DEFAULT_MODEL = 'claude-opus-5-5';
+// 서버의 /api/models를 못 받을 때 쓰는 목록
+const MODELS = [
+  { id: 'claude-opus-5-5', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20', recommended: true },
+  { id: 'claude-sonnet-5-5', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
+  { id: 'claude-haiku-5-5', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' }
+];
+const KEY_CONSOLE_URL = 'https://console.anthropic.com/settings/keys';
 
 // ───────────────────────── 설정 ─────────────────────────
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
-let settings = { serverUrl: DEFAULT_SERVER, theme: 'system', lastProject: null };
+let settings = {
+  serverMode: 'embedded',   // 'embedded' (앱 내장 서버) | 'custom' (직접 지정한 주소)
+  customServerUrl: '',
+  model: null,              // null이면 서버 기본 모델
+  apiKeyEnc: null,          // 사용자의 Claude API 키 (safeStorage로 암호화, base64)
+  apiKeyPlain: null,        // 암호화를 쓸 수 없는 환경에서만 사용
+  setupDone: false,         // 처음 실행 설정 도우미 완료/건너뜀
+  theme: 'system',
+  lastProject: null
+};
 
 function loadSettings() {
+  let saved = {};
   try {
-    settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) };
+    saved = JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) || {};
   } catch (_) { /* 기본값 사용 */ }
+  // 1.0 설정 이전: 기본 주소가 아닌 serverUrl을 쓰고 있었다면 '직접 지정'으로 유지
+  if (!saved.serverMode && typeof saved.serverUrl === 'string') {
+    const old = saved.serverUrl.trim().replace(/\/+$/, '');
+    if (old && old !== DEFAULT_SERVER && old !== 'http://127.0.0.1:8787') {
+      saved.serverMode = 'custom';
+      saved.customServerUrl = old;
+    }
+  }
+  delete saved.serverUrl;
+  delete saved.ollamaCpu; // 1.1 이전 Ollama 설정
+  settings = { ...settings, ...saved };
   if (!['system', 'light', 'dark'].includes(settings.theme)) settings.theme = 'system';
+  if (!['embedded', 'custom'].includes(settings.serverMode)) settings.serverMode = 'embedded';
+  if (settings.model && !MODEL_RE.test(settings.model)) settings.model = null;
 }
 
 function saveSettings() {
@@ -31,12 +66,59 @@ function saveSettings() {
 }
 
 function serverUrl() {
-  return String(settings.serverUrl || DEFAULT_SERVER).replace(/\/+$/, '');
+  if (settings.serverMode === 'custom' && settings.customServerUrl) return String(settings.customServerUrl).trim().replace(/\/+$/, '');
+  return embedded.url || 'http://127.0.0.1:8787';
+}
+
+// ───────────────────────── Claude API 키 ─────────────────────────
+// 키는 이 PC에만 저장하고(가능하면 OS 암호화), 렌더러에는 끝 4자리만 보여 준다.
+function getApiKey() {
+  if (settings.apiKeyEnc) {
+    try {
+      return safeStorage.decryptString(Buffer.from(settings.apiKeyEnc, 'base64'));
+    } catch (err) {
+      console.error('API 키 복호화 실패', err.message);
+      return null;
+    }
+  }
+  return settings.apiKeyPlain || null;
+}
+
+function storeApiKey(key) {
+  if (!key) {
+    settings.apiKeyEnc = null;
+    settings.apiKeyPlain = null;
+  } else if (safeStorage.isEncryptionAvailable()) {
+    settings.apiKeyEnc = safeStorage.encryptString(key).toString('base64');
+    settings.apiKeyPlain = null;
+  } else {
+    settings.apiKeyEnc = null;
+    settings.apiKeyPlain = key;
+  }
+  saveSettings();
+}
+
+const keyHeaders = (key = getApiKey()) => (key ? { 'x-api-key': key } : {});
+
+function publicSettings() {
+  const { apiKeyEnc, apiKeyPlain, ...rest } = settings;
+  const key = getApiKey();
+  return {
+    ...rest,
+    hasApiKey: !!key,
+    apiKeyHint: key ? `${key.slice(0, 7)}…${key.slice(-4)}` : '',
+    serverUrl: serverUrl(),
+    embedded: embedded.status(),
+    defaultModel: DEFAULT_MODEL,
+    version: app.getVersion(),
+    platform: process.platform
+  };
 }
 
 // ───────────────────────── 상태 ─────────────────────────
 let win = null;
 const preview = new PreviewServer();
+const embedded = new EmbeddedServer();
 let projectRoot = null;
 let watcher = null;
 const IGNORED_DIRS = new Set(['.codeai', '.git', 'node_modules', '.DS_Store']);
@@ -271,41 +353,103 @@ function friendlyError(err, url) {
 }
 
 async function health() {
+  if (settings.serverMode === 'embedded' && !embedded.url) await startEmbedded();
   const url = serverUrl();
+  if (settings.serverMode === 'embedded' && !embedded.url) {
+    return { ok: false, message: `내장 AI 서버를 시작하지 못했습니다: ${embedded.error || '알 수 없는 오류'}`, url, embedded: true };
+  }
   try {
     const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) return { ok: false, message: `AI 서버 오류 (HTTP ${res.status})`, url };
     const data = await res.json();
-    return { ok: !!data.ok, model: data.model, version: data.version, url };
+    const hasApiKey = !!getApiKey();
+    return {
+      ok: !!data.ok, hasApiKey, model: settings.model || data.model, serverModel: data.model, version: data.version, url,
+      embedded: settings.serverMode === 'embedded'
+    };
   } catch (err) {
     return { ok: false, message: friendlyError(err, url), url };
   }
 }
 
-function compareVersions(a, b) {
-  const pa = String(a).replace(/^v/, '').split(/[.-]/).map((x) => parseInt(x, 10) || 0);
-  const pb = String(b).replace(/^v/, '').split(/[.-]/).map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length, 3); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d) return d > 0 ? 1 : -1;
-  }
-  return 0;
+// 서버의 /updates/latest.json (GitHub 확인이 안 될 때의 마지막 대체 경로)
+async function latestJson() {
+  const res = await fetch(`${serverUrl()}/updates/latest.json`, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const dl = data.downloads || {};
+  const link = process.platform === 'darwin' ? dl.mac : dl.win;
+  return { version: data.version, notes: data.notes || '', url: link || dl.win || dl.mac || updater.RELEASES_URL };
 }
 
 async function checkUpdates() {
-  const url = serverUrl();
   try {
-    const res = await fetch(`${url}/updates/latest.json`, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return { available: false };
-    const data = await res.json();
-    const current = app.getVersion();
-    if (!data.version || compareVersions(data.version, current) <= 0) return { available: false, current };
-    const dl = data.downloads || {};
-    const link = process.platform === 'darwin' ? dl.mac : dl.win;
-    return { available: true, version: data.version, notes: data.notes || '', url: link || dl.win || dl.mac || null, current };
+    return await updater.check({ fallbackLatestJson: latestJson });
   } catch (_) {
     return { available: false };
   }
+}
+
+// ───────────────────────── 내장 서버 / 모델 / API 키 ─────────────────────────
+function startEmbedded() {
+  return embedded.start({ dataDir: path.join(app.getPath('userData'), 'server-data'), model: settings.model || undefined });
+}
+
+// 서버의 GET /api/models. 없으면(404 등) 고정 목록으로 대체.
+async function listModels() {
+  let models = null;
+  let source = 'static';
+  let defaultModel = DEFAULT_MODEL;
+  try {
+    const res = await fetch(`${serverUrl()}/api/models`, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.models) && data.models.length) {
+        models = data.models.filter((m) => m && MODEL_RE.test(String(m.id))).map((m) => ({
+          id: String(m.id), label: m.label || '', price: m.price || ''
+        }));
+        if (MODEL_RE.test(String(data.default))) defaultModel = data.default;
+        source = 'server';
+      }
+    }
+  } catch (_) { /* 서버 없음 → 고정 목록 */ }
+  if (!models || !models.length) models = MODELS.map((m) => ({ ...m }));
+  for (const m of models) {
+    const known = MODELS.find((k) => k.id === m.id);
+    if (known) {
+      m.label = m.label || known.label;
+      m.price = m.price || known.price;
+      m.recommended = !!known.recommended;
+    }
+  }
+  return { models, source, selected: settings.model || null, defaultModel };
+}
+
+// 키가 올바른지 서버의 /api/check-key로 확인 (요금 없음). 올바르면 저장한다.
+async function setApiKey(key) {
+  key = String(key || '').trim();
+  if (!key) return { ok: false, error: 'API 키를 입력해 주세요.' };
+  if (!/^sk-ant-[\w-]{10,}$/.test(key)) return { ok: false, error: 'Claude API 키 형식이 아닙니다. sk-ant- 로 시작하는 키를 붙여 넣어 주세요.' };
+  if (settings.serverMode === 'embedded' && !embedded.url) await startEmbedded();
+  const url = serverUrl();
+  let data = {};
+  try {
+    const res = await fetch(`${url}/api/check-key`, { method: 'POST', headers: keyHeaders(key), signal: AbortSignal.timeout(20000) });
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (res.status === 404) return { ok: false, error: 'AI 서버가 오래된 버전이라 키를 확인할 수 없습니다. 서버를 업데이트해 주세요.' };
+  } catch (err) {
+    return { ok: false, error: friendlyError(err, url) };
+  }
+  if (!data.ok) return { ok: false, error: data.error || '키를 확인하지 못했습니다.' };
+  storeApiKey(key);
+  send('settings:changed', publicSettings());
+  return { ok: true, settings: publicSettings() };
+}
+
+function clearApiKey() {
+  storeApiKey(null);
+  send('settings:changed', publicSettings());
+  return publicSettings();
 }
 
 // 채팅 스트리밍
@@ -324,12 +468,19 @@ async function runChat(id, payload) {
     const files = root ? await collectFiles([payload.activeFile, payload.selection && payload.selection.file]) : [];
     const body = { messages: payload.messages, files };
     if (payload.selection) body.selection = payload.selection;
+    if (settings.model) body.model = settings.model;
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      emit({ type: 'error', message: 'Claude API 키가 없습니다. 설정에서 본인의 Claude API 키를 입력해 주세요.', needsKey: true });
+      return;
+    }
 
     let res;
     try {
       res = await fetch(`${url}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...keyHeaders(apiKey) },
         body: JSON.stringify(body),
         signal: controller.signal
       });
@@ -341,7 +492,11 @@ async function runChat(id, payload) {
       let msg = '';
       try { msg = await res.text(); } catch (_) { /* ignore */ }
       try { msg = JSON.parse(msg).error || JSON.parse(msg).message || msg; } catch (_) { /* text */ }
-      emit({ type: 'error', message: `AI 서버 오류 (HTTP ${res.status})${msg ? ': ' + String(msg).slice(0, 300) : ''}` });
+      emit({
+        type: 'error',
+        message: `AI 서버 오류 (HTTP ${res.status})${msg ? ': ' + String(msg).slice(0, 300) : ''}`,
+        needsKey: res.status === 401 || undefined
+      });
       return;
     }
 
@@ -374,7 +529,8 @@ async function runChat(id, payload) {
       } else if (ev.type === 'done') {
         finished = true;
       } else if (ev.type === 'error') {
-        emit({ type: 'error', message: ev.message || 'AI 서버에서 오류가 발생했습니다.' });
+        const message = ev.message || 'AI 서버에서 오류가 발생했습니다.';
+        emit({ type: 'error', message, needsKey: /API 키/.test(message) || undefined });
         finished = true;
       }
     };
@@ -413,18 +569,46 @@ async function runChat(id, payload) {
 
 // ───────────────────────── IPC ─────────────────────────
 function registerIpc() {
-  ipcMain.handle('settings:get', () => ({ ...settings, version: app.getVersion(), platform: process.platform }));
-  ipcMain.handle('settings:set', (_e, partial) => {
+  ipcMain.handle('settings:get', () => publicSettings());
+  ipcMain.handle('settings:set', async (_e, partial) => {
     const allowed = {};
-    if (partial && typeof partial.serverUrl === 'string') allowed.serverUrl = partial.serverUrl.trim() || DEFAULT_SERVER;
-    if (partial && ['system', 'light', 'dark'].includes(partial.theme)) {
+    partial = partial || {};
+    if (['embedded', 'custom'].includes(partial.serverMode)) allowed.serverMode = partial.serverMode;
+    if (typeof partial.customServerUrl === 'string') allowed.customServerUrl = partial.customServerUrl.trim().replace(/\/+$/, '');
+    // 1.0 호환: serverUrl을 주면 직접 지정 주소로 간주
+    if (typeof partial.serverUrl === 'string') {
+      allowed.serverMode = 'custom';
+      allowed.customServerUrl = partial.serverUrl.trim().replace(/\/+$/, '');
+    }
+    const custom = allowed.customServerUrl ?? settings.customServerUrl;
+    if ((allowed.serverMode || settings.serverMode) === 'custom' && !custom) allowed.serverMode = 'embedded';
+    if (partial.model === null || (typeof partial.model === 'string' && MODEL_RE.test(partial.model))) allowed.model = partial.model;
+    if (typeof partial.setupDone === 'boolean') allowed.setupDone = partial.setupDone;
+    if (['system', 'light', 'dark'].includes(partial.theme)) {
       allowed.theme = partial.theme;
       nativeTheme.themeSource = partial.theme;
     }
     settings = { ...settings, ...allowed };
     saveSettings();
-    return settings;
+    if (settings.serverMode === 'embedded' && !embedded.url) await startEmbedded();
+    return publicSettings();
   });
+
+  // 내장 서버 / 모델 / API 키 / 설정 도우미
+  ipcMain.handle('embedded:start', async () => {
+    const st = await startEmbedded();
+    if (!st.running) return st;
+    try {
+      const res = await fetch(`${st.url}/api/health`, { signal: AbortSignal.timeout(4000) });
+      return { ...st, healthy: res.ok };
+    } catch (err) {
+      return { ...st, healthy: false, error: err.message };
+    }
+  });
+  ipcMain.handle('models:list', () => listModels());
+  ipcMain.handle('apikey:set', (_e, key) => setApiKey(key));
+  ipcMain.handle('apikey:clear', () => clearApiKey());
+  ipcMain.handle('apikey:console', () => shell.openExternal(KEY_CONSOLE_URL));
 
   ipcMain.handle('preview:base', () => preview.base);
 
@@ -549,6 +733,8 @@ function registerIpc() {
 
   ipcMain.handle('server:health', () => health());
   ipcMain.handle('updates:check', () => checkUpdates());
+  ipcMain.handle('updates:state', () => updater.getState());
+  ipcMain.handle('updates:install', () => updater.installNow());
 
   ipcMain.handle('shell:openExternal', (_e, url) => {
     if (/^https?:\/\//i.test(String(url))) return shell.openExternal(String(url));
@@ -607,6 +793,7 @@ function buildMenu() {
     {
       label: '도움말',
       submenu: [
+        { label: '설정 도우미 (Claude API 키)…', click: cmd('setup') },
         { label: '업데이트 확인', click: cmd('check-updates') },
         { label: `버전 ${app.getVersion()}`, enabled: false }
       ]
@@ -672,6 +859,7 @@ function runSmokeTest() {
           tree: document.querySelectorAll('#file-tree .tree-item').length,
           preview: document.getElementById('preview-frame') ? document.getElementById('preview-frame').src : null,
           serverStatus: document.getElementById('server-status') ? document.getElementById('server-status').title : null,
+          setupOpen: document.getElementById('modal-setup') ? !document.getElementById('modal-setup').hidden : null,
           nodeIntegration: typeof process !== 'undefined'
         })`);
       } catch (err) {
@@ -697,8 +885,10 @@ function runSmokeTest() {
           errors.push('smoke-eval: ' + err.message);
         }
       }
+      state.embedded = embedded.status();
+      try { state.updaterModule = !!require.resolve('electron-updater'); } catch (_) { state.updaterModule = false; }
       console.log('SMOKE_STATE ' + JSON.stringify(state));
-      const ok = state.ready && state.monaco && state.api && !state.nodeIntegration && errors.length === 0;
+      const ok = state.ready && state.monaco && state.api && !state.nodeIntegration && state.embedded.running && errors.length === 0;
       console.log(ok ? 'SMOKE_OK' : 'SMOKE_FAIL ' + JSON.stringify(errors));
       app.exit(ok ? 0 : 1);
     }, 5000);
@@ -722,6 +912,7 @@ if (!gotLock) {
     loadSettings();
     nativeTheme.themeSource = settings.theme;
     await preview.start();
+    await startEmbedded();
 
     const projArg = process.argv.find((a) => a.startsWith('--project='));
     const initial = projArg ? projArg.slice('--project='.length) : settings.lastProject;
@@ -731,6 +922,13 @@ if (!gotLock) {
     buildMenu();
     createWindow();
     nativeTheme.on('updated', () => send('theme:updated', { dark: nativeTheme.shouldUseDarkColors }));
+
+    if (!IS_SMOKE) {
+      // Windows 설치본: 백그라운드로 업데이트를 받고, 다 받으면 렌더러에 배너 표시
+      if (updater.init((st) => send('updates:state', st))) {
+        setTimeout(() => updater.check().catch(() => {}), 4000);
+      }
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -742,5 +940,9 @@ if (!gotLock) {
     if (watcher) watcher.close();
     preview.stop();
     if (process.platform !== 'darwin') app.quit();
+  });
+
+  app.on('will-quit', () => {
+    embedded.stop();
   });
 }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChatMessage, health, Selection, ServerError, streamChat, UNREACHABLE_MESSAGE } from './api';
+import { ChatMessage, getModel, hasApiKey, health, Selection, ServerError, streamChat, UNREACHABLE_MESSAGE } from './api';
 import { HistoryStore } from './history';
 import { collectContextFiles, getRoot, resolveInRoot, toRelative, writeText } from './workspace';
 
@@ -84,7 +84,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
   async checkServer(): Promise<boolean> {
     try {
       const h = await health();
-      this.post({ type: 'server', ok: true, text: h.model ? `연결됨 · ${h.model}` : '연결됨' });
+      if (!hasApiKey()) {
+        this.post({ type: 'server', ok: false, text: 'Claude API 키 필요' });
+        return false;
+      }
+      this.post({ type: 'server', ok: true, text: `연결됨 · ${getModel()}` });
       return true;
     } catch (e) {
       this.post({ type: 'server', ok: false, text: '서버 연결 안 됨' });
@@ -189,7 +193,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       const files = await collectContextFiles(selection?.file ? [selection.file] : []);
       this.post({ type: 'context', files: files.map((f) => f.path) });
       await streamChat(
-        { messages: this.messages.slice(-20), files, ...(selection ? { selection } : {}) },
+        { messages: this.messages.slice(-20), files, model: getModel(), ...(selection ? { selection } : {}) },
         (ev) => {
           switch (ev.type) {
             case 'delta':
@@ -227,6 +231,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
       }
     } finally {
       this.abort = undefined;
+    }
+    if (errorText && (!hasApiKey() || /API 키/.test(errorText))) {
+      void vscode.window.showErrorMessage(errorText, 'API 키 입력').then((pick) => {
+        if (pick) {
+          void vscode.commands.executeCommand('codeai.setApiKey');
+        }
+      });
     }
 
     if (answer) {

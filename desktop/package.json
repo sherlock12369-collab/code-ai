@@ -1,7 +1,7 @@
 {
   "name": "code-ai-desktop",
   "productName": "Code AI",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Code AI — 실시간 미리보기가 있는 AI 코딩 도구",
   "author": "Code AI",
   "license": "UNLICENSED",
@@ -9,10 +9,10 @@
   "scripts": {
     "start": "electron .",
     "smoke": "electron . --smoke-test",
-    "check": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/server.js && node --check src/main/history.js && node --check src/main/inspector.js && node --check src/renderer/app.js",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win nsis",
-    "dist:mac": "electron-builder --mac dmg",
+    "check": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/server.js && node --check src/main/history.js && node --check src/main/inspector.js && node --check src/main/embedded.js && node --check src/main/updater.js && node --check src/renderer/app.js",
+    "dist": "electron-builder --publish never",
+    "dist:win": "electron-builder --win nsis --publish never",
+    "dist:mac": "electron-builder --mac dmg --publish never",
     "postinstall": "node node_modules/electron/install.js"
   },
   "build": {
@@ -34,6 +34,16 @@
         "to": "templates",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!data/**",
+          "!downloads/**",
+          "!test.mjs"
         ]
       }
     ],
@@ -69,9 +79,17 @@
     "dmg": {
       "artifactName": "CodeAI-${version}.dmg"
     },
-    "publish": null
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sherlock12369-collab",
+        "repo": "code-ai",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "marked": "^18.1.1",
     "monaco-editor": "^0.52.2"
   },

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import Anthropic from '@anthropic-ai/sdk';
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -10,19 +11,57 @@ import { safeRelativePath } from './lib/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
+
+// AI는 Claude API만 사용한다. API 키는 서버에 두지 않고, 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다.
+export const DEFAULT_MODEL = 'claude-opus-5-5';
+
+// 사용자가 고를 수 있는 모델. MODEL 환경 변수 값(claude-로 시작해야 함)도 추가로 허용된다.
+// price: 100만 토큰당 입력 / 출력 요금 (USD)
+export const MODEL_CHOICES = [
+  { id: 'claude-opus-5-5', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20' },
+  { id: 'claude-sonnet-5-5', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
+  { id: 'claude-haiku-5-5', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' },
+];
+
+// Haiku에는 서버 측 거절 대체(fallbacks)가 없다.
+const NO_FALLBACK = new Set(['claude-haiku-5-5']);
+
+const isClaudeModel = (id) => typeof id === 'string' && /^claude-[a-z0-9.-]+$/.test(id);
 
 export function getConfig(env = process.env) {
   return {
-    port: Number(env.PORT) || 8787,
+    port: env.PORT !== undefined && env.PORT !== '' && Number.isInteger(Number(env.PORT)) ? Number(env.PORT) : 8787,
     host: env.HOST || '0.0.0.0',
-    ollamaUrl: (env.OLLAMA_URL || 'http://localhost:11434').replace(/\/+$/, ''),
-    model: env.MODEL || 'qwen2.5-coder:7b',
+    // 테스트/프록시용. 비우면 Anthropic 공식 주소.
+    apiBaseUrl: (env.CLAUDE_API_BASE_URL || '').replace(/\/+$/, ''),
+    model: isClaudeModel(env.MODEL) ? env.MODEL : DEFAULT_MODEL,
     publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, ''),
     dataDir: path.resolve(env.DATA_DIR || path.join(__dirname, 'data')),
-    updatesFile: path.join(__dirname, 'updates', 'latest.json'),
-    downloadsDir: path.join(__dirname, 'downloads'),
+    updatesFile: path.resolve(env.UPDATES_FILE || path.join(__dirname, 'updates', 'latest.json')),
+    downloadsDir: path.resolve(env.DOWNLOADS_DIR || path.join(__dirname, 'downloads')),
   };
+}
+
+// 옵션(일부만 줘도 됨)을 환경 변수/기본 설정과 합친다. undefined 값은 무시한다.
+export function resolveConfig(options = {}, env = process.env) {
+  const cfg = getConfig(env);
+  for (const [k, v] of Object.entries(options || {})) if (v !== undefined) cfg[k] = v;
+  cfg.port = Number(cfg.port) || 0;
+  cfg.apiBaseUrl = String(cfg.apiBaseUrl || '').replace(/\/+$/, '');
+  if (!isClaudeModel(cfg.model)) cfg.model = DEFAULT_MODEL;
+  cfg.publicUrl = String(cfg.publicUrl || '').replace(/\/+$/, '');
+  cfg.dataDir = path.resolve(cfg.dataDir);
+  cfg.updatesFile = path.resolve(cfg.updatesFile);
+  cfg.downloadsDir = path.resolve(cfg.downloadsDir);
+  return cfg;
+}
+
+// 허용된 모델 id 목록 (선택지 3개 + MODEL 값)
+export function allowedModels(cfg) {
+  const ids = MODEL_CHOICES.map((m) => m.id);
+  if (cfg.model && !ids.includes(cfg.model)) ids.push(cfg.model);
+  return ids;
 }
 
 const MAX_BODY = 50 * 1024 * 1024; // 50MB
@@ -59,7 +98,7 @@ const MIME = {
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Api-Key');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
@@ -99,12 +138,59 @@ function baseUrl(cfg, req) {
   return `http://${req.headers.host || `localhost:${cfg.port}`}`;
 }
 
-// ---------- /api/chat ----------
+// ---------- Claude API ----------
 
-const OLLAMA_DOWN_MSG = 'AI 모델 서버에 연결할 수 없습니다. Ollama가 실행 중인지 확인하세요.';
+// 요청에서 사용자의 Claude API 키를 꺼낸다. (x-api-key 헤더 또는 Authorization: Bearer)
+export function apiKeyFrom(req) {
+  let key = req.headers['x-api-key'];
+  if (!key) {
+    const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
+    if (m) key = m[1];
+  }
+  key = typeof key === 'string' ? key.trim() : '';
+  return key || null;
+}
+
+const NO_KEY_MSG = 'Claude API 키가 없습니다. 설정에서 본인의 Claude API 키(sk-ant-…)를 입력하세요.';
+
+function claudeClient(cfg, apiKey) {
+  return new Anthropic({ apiKey, authToken: null, ...(cfg.apiBaseUrl ? { baseURL: cfg.apiBaseUrl } : {}) });
+}
+
+// SDK 오류 → 사용자에게 보여 줄 한국어 메시지 (구체적인 것부터 확인)
+export function claudeErrorMessage(err) {
+  if (err instanceof Anthropic.AuthenticationError) return 'Claude API 키가 올바르지 않습니다. 설정에서 키를 다시 확인하세요.';
+  if (err instanceof Anthropic.PermissionDeniedError) return '이 API 키로는 해당 모델을 사용할 권한이 없습니다.';
+  if (err instanceof Anthropic.NotFoundError) return '모델을 찾을 수 없습니다. 설정에서 다른 모델을 골라 보세요.';
+  if (err instanceof Anthropic.RateLimitError) return '요청 한도를 넘었습니다. 잠시 후 다시 시도하세요.';
+  if (err instanceof Anthropic.BadRequestError) {
+    if (/credit balance/i.test(err.message)) return 'Claude API 크레딧이 부족합니다. console.anthropic.com 에서 결제 정보를 확인하세요.';
+    return `요청이 올바르지 않습니다: ${err.message}`;
+  }
+  if (err instanceof Anthropic.APIConnectionError) return 'Claude API에 연결할 수 없습니다. 인터넷 연결을 확인하세요.';
+  if (err instanceof Anthropic.APIError && err.status >= 500) return 'Claude API 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도하세요.';
+  return `Claude API 오류: ${err?.message || err}`;
+}
+
+// ---------- /api/chat ----------
 
 async function handleChat(cfg, req, res) {
   const body = await readJsonBody(req);
+
+  const apiKey = apiKeyFrom(req);
+  if (!apiKey) return sendJson(res, 401, { error: NO_KEY_MSG });
+
+  // 모델 선택 (없으면 서버 기본값). 허용되지 않은 모델은 SSE 시작 전에 400.
+  let model = cfg.model;
+  if (body.model !== undefined && body.model !== null && body.model !== '') {
+    const allowed = allowedModels(cfg);
+    if (typeof body.model !== 'string' || !allowed.includes(body.model)) {
+      return sendJson(res, 400, {
+        error: `지원하지 않는 모델입니다: ${String(body.model).slice(0, 100)} (사용 가능: ${allowed.join(', ')})`,
+      });
+    }
+    model = body.model;
+  }
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -118,7 +204,8 @@ async function handleChat(cfg, req, res) {
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(obj)}\n\n`);
   };
 
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+  const { system, messages } = buildMessages(body.messages, body.files, body.selection);
+  if (messages.length === 0) {
     send({ type: 'error', message: '메시지가 비어 있습니다.' });
     return res.end();
   }
@@ -128,78 +215,77 @@ async function handleChat(cfg, req, res) {
     if (!res.writableEnded) controller.abort();
   });
 
-  let ollamaRes;
-  try {
-    ollamaRes = await fetch(`${cfg.ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: cfg.model,
-        messages: buildMessages(body.messages, body.files, body.selection),
-        stream: true,
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (controller.signal.aborted) return;
-    console.error('[chat] Ollama 연결 실패:', err.cause?.code || err.message);
-    send({ type: 'error', message: OLLAMA_DOWN_MSG });
-    return res.end();
-  }
-
-  if (!ollamaRes.ok) {
-    let detail = '';
-    try {
-      detail = (await ollamaRes.json()).error || '';
-    } catch {}
-    console.error(`[chat] Ollama 오류 ${ollamaRes.status}: ${detail}`);
-    const message =
-      ollamaRes.status === 404 && /model/i.test(detail)
-        ? `모델 '${cfg.model}'을(를) 찾을 수 없습니다. 서버에서 'ollama pull ${cfg.model}'을 실행하세요.`
-        : `AI 모델 서버 오류가 발생했습니다. (${ollamaRes.status}${detail ? `: ${detail}` : ''})`;
-    send({ type: 'error', message });
-    return res.end();
+  const params = {
+    model,
+    max_tokens: 64000,
+    system,
+    messages,
+    output_config: { effort: 'high' },
+  };
+  // 안전 분류기가 거절하면 서버에서 다른 Claude 모델로 이어서 답하게 한다.
+  if (!NO_FALLBACK.has(model)) {
+    params.betas = ['server-side-fallback-2026-07-01'];
+    params.fallbacks = 'default';
   }
 
   let full = '';
+  let final;
   try {
-    const decoder = new TextDecoder();
-    let buf = '';
-    const handleLine = (line) => {
-      if (!line.trim()) return;
-      let obj;
-      try {
-        obj = JSON.parse(line);
-      } catch {
-        return;
-      }
-      if (obj.error) throw new Error(obj.error);
-      const text = obj.message?.content;
-      if (text) {
-        full += text;
-        send({ type: 'delta', text });
-      }
-    };
-    for await (const chunk of ollamaRes.body) {
-      buf += decoder.decode(chunk, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        handleLine(buf.slice(0, nl));
-        buf = buf.slice(nl + 1);
+    const stream = claudeClient(cfg, apiKey).beta.messages.stream(params, { signal: controller.signal });
+    for await (const event of stream) {
+      if (event.type === 'content_block_start' && event.content_block.type === 'fallback') {
+        // 앞 모델이 중간에 거절함 → 이어받는 모델의 답만 파일로 저장한다.
+        full = '';
+        send({ type: 'delta', text: '\n\n(다른 Claude 모델로 이어서 답합니다)\n\n' });
+      } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        full += event.delta.text;
+        send({ type: 'delta', text: event.delta.text });
       }
     }
-    buf += decoder.decode();
-    handleLine(buf);
+    final = await stream.finalMessage();
   } catch (err) {
     if (controller.signal.aborted) return;
-    console.error('[chat] 스트리밍 오류:', err.message);
-    send({ type: 'error', message: `답변을 받는 중 오류가 발생했습니다: ${err.message}` });
+    console.error('[chat] Claude API 오류:', err.status ?? '', err.message);
+    send({ type: 'error', message: claudeErrorMessage(err) });
     return res.end();
+  }
+
+  if (final.stop_reason === 'refusal') {
+    send({ type: 'error', message: 'Claude가 이 요청에는 답할 수 없다고 했습니다. 요청을 바꿔서 다시 시도해 보세요.' });
+    return res.end();
+  }
+  if (final.stop_reason === 'max_tokens') {
+    send({ type: 'delta', text: '\n\n(답변이 너무 길어 중간에 끊겼습니다. 끝나지 않은 파일은 저장되지 않았습니다.)' });
   }
 
   for (const f of parseFileBlocks(full)) send({ type: 'file', path: f.path, content: f.content });
   send({ type: 'done' });
   res.end();
+}
+
+// ---------- /api/check-key ----------
+
+// 키가 맞는지 확인한다. 모델 정보 조회만 하므로 요금이 들지 않는다.
+async function handleCheckKey(cfg, req, res) {
+  const apiKey = apiKeyFrom(req);
+  if (!apiKey) return sendJson(res, 401, { ok: false, error: NO_KEY_MSG });
+  try {
+    await claudeClient(cfg, apiKey).models.retrieve(cfg.model, { timeout: 15000, maxRetries: 1 });
+    return sendJson(res, 200, { ok: true, model: cfg.model });
+  } catch (err) {
+    const status = err instanceof Anthropic.AuthenticationError ? 401 : 200;
+    return sendJson(res, status, { ok: false, error: claudeErrorMessage(err) });
+  }
+}
+
+// ---------- /api/models ----------
+
+function handleModels(cfg, res) {
+  const models = allowedModels(cfg).map((id) => {
+    const choice = MODEL_CHOICES.find((m) => m.id === id);
+    return { id, label: choice ? choice.label : `사용자 지정 (${id})`, price: choice ? choice.price : '' };
+  });
+  return sendJson(res, 200, { models, default: cfg.model, provider: 'claude' });
 }
 
 // ---------- 정적 파일 ----------
@@ -236,7 +322,10 @@ async function serveStatic(res, rootDir, relPath, method) {
 
 // ---------- 라우터 ----------
 
-export function createApp(cfg = getConfig()) {
+// options: { port, host, dataDir, apiBaseUrl, model, publicUrl, updatesFile, downloadsDir }
+// 일부만 줘도 나머지는 환경 변수/기본값을 쓴다. (기존처럼 getConfig() 결과 전체를 넘겨도 된다.)
+export function createApp(options) {
+  const cfg = resolveConfig(options);
   const sitesDir = path.join(cfg.dataDir, 'sites');
 
   return http.createServer(async (req, res) => {
@@ -257,6 +346,14 @@ export function createApp(cfg = getConfig()) {
     try {
       if (pathname === '/api/health' && isGet) {
         return sendJson(res, 200, { ok: true, model: cfg.model, version: VERSION });
+      }
+
+      if (pathname === '/api/models' && isGet) {
+        return handleModels(cfg, res);
+      }
+
+      if (pathname === '/api/check-key' && req.method === 'POST') {
+        return await handleCheckKey(cfg, req, res);
       }
 
       if (pathname === '/api/chat' && req.method === 'POST') {
@@ -308,11 +405,33 @@ export function createApp(cfg = getConfig()) {
   });
 }
 
+// 서버를 만들어 실행하고 { server, port, url, config }를 돌려준다. (데스크톱 앱 내장용)
+// port: 0 이면 빈 포트를 자동으로 고른다.
+export function startServer(options = {}) {
+  const cfg = resolveConfig(options);
+  const server = createApp(cfg);
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(cfg.port, cfg.host, () => {
+      server.off('error', reject);
+      const port = server.address().port;
+      resolve({ server, port, url: `http://127.0.0.1:${port}`, config: { ...cfg, port } });
+    });
+  });
+}
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const cfg = getConfig();
-  createApp(cfg).listen(cfg.port, cfg.host, () => {
-    console.log(`Code AI 서버 v${VERSION} 실행 중: http://localhost:${cfg.port}`);
-    console.log(`  모델: ${cfg.model}  (Ollama: ${cfg.ollamaUrl})`);
-  });
+  startServer().then(
+    ({ port, config }) => {
+      console.log(`Code AI 서버 v${VERSION} 실행 중: http://localhost:${port}`);
+      console.log(`  기본 모델: ${config.model} (Claude API — 사용자 키는 요청마다 x-api-key 헤더로 받음)`);
+    },
+    (err) => {
+      console.error(
+        err.code === 'EADDRINUSE' ? `포트가 이미 사용 중입니다: ${err.port ?? ''}` : `서버를 시작할 수 없습니다: ${err.message}`,
+      );
+      process.exit(1);
+    },
+  );
 }
