@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>오늘의 생활 — 라이프스타일 편집숍</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="notice">🚚 3만원 이상 무료배송 · 첫 구매 10% 할인 쿠폰 지급</div>
+  <header class="header">
+    <div class="container header-inner">
+      <a href="#" class="brand">오늘의 생활</a>
+      <div class="search"><input type="search" id="search" placeholder="상품 검색"></div>
+      <button class="cart-btn" id="cart-btn" aria-label="장바구니">
+        🛒 장바구니 <span class="cart-count" id="cart-count">0</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container hero-inner">
+      <div>
+        <p class="kicker">2026 가을 컬렉션</p>
+        <h1>매일을 채우는<br>작고 좋은 물건들</h1>
+        <p class="hero-text">오래 써도 질리지 않는 생활용품을 골랐습니다. 지금 신상품을 최대 20% 할인된 가격에 만나보세요.</p>
+        <a href="#products" class="btn">쇼핑하러 가기</a>
+      </div>
+      <div class="hero-img"><img src="images/lamp.svg" alt="스탠드 조명"></div>
+    </div>
+  </section>
+
+  <main class="container" id="products">
+    <div class="toolbar">
+      <h2>전체 상품</h2>
+      <div class="filters" id="filters">
+        <button class="filter active" data-cat="all">전체</button>
+        <button class="filter" data-cat="kitchen">주방</button>
+        <button class="filter" data-cat="living">리빙</button>
+        <button class="filter" data-cat="stationery">문구</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden>검색 결과가 없습니다.</p>
+  </main>
+
+  <section class="perks container">
+    <div><b>무료 배송</b><span>3만원 이상 구매 시</span></div>
+    <div><b>30일 무료 반품</b><span>마음에 들지 않으면 언제든지</span></div>
+    <div><b>안전한 결제</b><span>카드 · 간편결제 · 계좌이체</span></div>
+  </section>
+
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-panel">
+      <div class="drawer-head"><h3>장바구니</h3><button class="close" id="drawer-close" aria-label="닫기">✕</button></div>
+      <ul class="cart-list" id="cart-list"></ul>
+      <div class="drawer-foot">
+        <div class="total"><span>합계</span><b id="cart-total">₩0</b></div>
+        <button class="btn btn-block" id="checkout">주문하기</button>
+      </div>
+    </div>
+  </aside>
+
+  <footer class="footer">
+    <div class="container">
+      <b>오늘의 생활</b>
+      <p>고객센터 1588-0000 · 평일 10:00–18:00 · help@example.com</p>
+      <p class="copy">© 2026 오늘의 생활. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

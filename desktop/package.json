@@ -1,0 +1,82 @@
+{
+  "name": "code-ai-desktop",
+  "productName": "Code AI",
+  "version": "1.0.0",
+  "description": "Code AI — 실시간 미리보기가 있는 AI 코딩 도구",
+  "author": "Code AI",
+  "license": "UNLICENSED",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test",
+    "check": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/server.js && node --check src/main/history.js && node --check src/main/inspector.js && node --check src/renderer/app.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "postinstall": "node node_modules/electron/install.js"
+  },
+  "build": {
+    "appId": "com.codeai.desktop",
+    "productName": "Code AI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "node_modules/monaco-editor/min/**/*",
+      "node_modules/marked/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../shared/templates",
+        "to": "templates",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "CodeAI-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Code AI"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "CodeAI-${version}.dmg"
+    },
+    "publish": null
+  },
+  "dependencies": {
+    "marked": "^18.1.1",
+    "monaco-editor": "^0.52.2"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  }
+}

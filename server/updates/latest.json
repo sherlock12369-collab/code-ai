@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "notes": "Code AI 1.0.0 첫 출시\n- 실시간 미리보기 패널 (HTML, Markdown, 이미지, PDF)\n- 원클릭 배포로 공유 링크 받기\n- 변경 기록 및 되돌리기\n- 미리보기에서 요소를 클릭해 바로 수정 요청\n- 쇼핑몰, 포트폴리오, 랜딩페이지, 보고서 템플릿\n- 한국어 최적화",
+  "downloads": {
+    "win": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.0.0.exe",
+    "mac": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.0.0.dmg"
+  }
+}

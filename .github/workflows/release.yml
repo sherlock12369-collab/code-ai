@@ -1,0 +1,60 @@
+name: 설치 파일 빌드
+
+# v1.0.0 같은 태그를 올리면 Windows/macOS 설치 파일과 VS Code 확장을 만들어 릴리스에 올린다.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '릴리스 태그 (예: v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            pattern: desktop/dist/*.exe
+          - os: macos-latest
+            script: dist:mac
+            pattern: desktop/dist/*.dmg
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+        working-directory: desktop
+      - run: npm run ${{ matrix.script }}
+        working-directory: desktop
+      - name: 릴리스에 업로드
+        shell: bash
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Code AI ${TAG#v}" --notes "Code AI ${TAG#v}"
+          gh release upload "$TAG" ${{ matrix.pattern }} --clobber
+
+  vscode:
+    runs-on: ubuntu-latest
+    needs: desktop
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm run compile && npx --yes @vscode/vsce package --no-dependencies
+        working-directory: vscode-extension
+      - run: gh release upload "$TAG" vscode-extension/*.vsix --clobber

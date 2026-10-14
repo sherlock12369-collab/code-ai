@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code AI 다운로드</title>
+  <meta name="description" content="Code AI 1.0.0 — 만드는 결과물을 실시간으로 보면서 AI와 함께 코드를 짜는 도구. Windows, macOS, VS Code 확장 지원.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // 첫 렌더 전에 테마 적용 (깜빡임 방지)
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('codeai-theme'); } catch (e) {}
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 건너뛰기</a>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top" aria-label="Code AI 홈">
+        <img src="favicon.svg" alt="" width="28" height="28">
+        <span>Code AI</span>
+      </a>
+      <nav class="nav-links" aria-label="주요 메뉴">
+        <a href="#versions">버전</a>
+        <a href="#features">기능</a>
+        <a href="#releases">릴리스 노트</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="테마 전환">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a class="btn btn-sm btn-primary nav-dl" href="#download">다운로드</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 히어로 -->
+    <section class="hero" id="top">
+      <div class="container hero-inner">
+        <span class="pill"><span class="dot"></span> 버전 1.0.0 출시</span>
+        <h1>만드는 그대로 보면서,<br><span class="accent-text">AI와 함께 코딩하세요.</span></h1>
+        <p class="lead">Code AI는 편집기 옆에서 결과물을 실시간으로 보여주는 AI 코딩 도구입니다. 말로 요청하고, 화면에서 바로 확인하고, 클릭 한 번으로 배포하세요.</p>
+
+        <div class="download" id="download">
+          <a class="btn btn-lg btn-primary" id="primaryDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.0.0.exe">
+            <span class="os-icon" id="primaryIcon" aria-hidden="true"></span>
+            <span id="primaryLabel">Windows용 다운로드</span>
+          </a>
+          <p class="dl-meta" id="primaryMeta">버전 1.0.0 · Windows 10 이상 · 64비트</p>
+          <div class="dl-others">
+            <span class="muted">다른 플랫폼:</span>
+            <a class="btn btn-sm btn-ghost" id="dlWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.0.0.exe">
+              <span class="os-icon" data-os="win" aria-hidden="true"></span>Windows
+            </a>
+            <a class="btn btn-sm btn-ghost" id="dlMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.0.0.dmg">
+              <span class="os-icon" data-os="mac" aria-hidden="true"></span>macOS
+            </a>
+            <a class="btn btn-sm btn-ghost" href="#versions">
+              <span class="os-icon" data-os="vscode" aria-hidden="true"></span>VS Code 확장
+            </a>
+          </div>
+        </div>
+
+        <!-- 목업 스크린샷: 편집기 | 채팅 | 미리보기 -->
+        <figure class="mock" aria-label="Code AI 화면 예시: 왼쪽 편집기, 가운데 AI 채팅, 오른쪽 실시간 미리보기">
+          <div class="mock-bar">
+            <span class="mock-dots"><i></i><i></i><i></i></span>
+            <span class="mock-title">my-cafe — Code AI</span>
+            <span class="mock-deploy">배포</span>
+          </div>
+          <div class="mock-body">
+            <div class="mock-pane mock-editor">
+              <div class="mock-tab">index.html</div>
+              <pre class="code" aria-hidden="true"><span class="ln">1</span><span class="tk-t">&lt;section</span> <span class="tk-a">class</span>=<span class="tk-s">"hero"</span><span class="tk-t">&gt;</span>
+<span class="ln">2</span>  <span class="tk-t">&lt;h1&gt;</span>오늘의 커피<span class="tk-t">&lt;/h1&gt;</span>
+<span class="ln">3</span>  <span class="tk-t">&lt;p&gt;</span>매일 아침 볶는 원두<span class="tk-t">&lt;/p&gt;</span>
+<span class="ln">4</span>  <span class="tk-t">&lt;button</span> <span class="tk-a">class</span>=<span class="tk-s">"cta"</span><span class="tk-t">&gt;</span>
+<span class="ln">5</span>    주문하기
+<span class="ln">6</span>  <span class="tk-t">&lt;/button&gt;</span>
+<span class="ln">7</span><span class="tk-t">&lt;/section&gt;</span>
+<span class="ln">8</span>
+<span class="ln">9</span><span class="tk-t">&lt;style&gt;</span>
+<span class="ln">10</span>  <span class="tk-a">.cta</span> { <span class="tk-a">background</span>: <span class="tk-s">#7c5cff</span>; }
+<span class="ln">11</span><span class="tk-t">&lt;/style&gt;</span></pre>
+            </div>
+            <div class="mock-pane mock-chat">
+              <div class="mock-tab">AI 채팅</div>
+              <div class="bubble user">카페 랜딩페이지 만들어줘</div>
+              <div class="bubble ai">랜딩페이지를 만들었어요. 오른쪽 미리보기에서 확인해 보세요.</div>
+              <div class="chip">선택됨: <code>button.cta</code></div>
+              <div class="bubble user">이 버튼 보라색으로</div>
+              <div class="bubble ai">버튼 색을 바꿨어요. <span class="tag">index.html 수정</span></div>
+              <div class="mock-input">요청을 입력하세요…</div>
+            </div>
+            <div class="mock-pane mock-preview">
+              <div class="mock-tab"><span class="live"></span> 미리보기 · 실시간</div>
+              <div class="site">
+                <div class="site-nav"><b>오늘의 커피</b><span>메뉴 · 매장</span></div>
+                <div class="site-hero">
+                  <div class="site-h1">오늘의 커피</div>
+                  <div class="site-p">매일 아침 볶는 원두</div>
+                  <div class="site-cta selected">주문하기</div>
+                </div>
+                <div class="site-cards"><i></i><i></i><i></i></div>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 두 가지 버전 -->
+    <section class="section" id="versions">
+      <div class="container">
+        <h2 class="section-title">두 가지 방식으로 사용하세요</h2>
+        <p class="section-sub">같은 AI, 같은 기능. 익숙한 환경을 고르면 됩니다.</p>
+        <div class="grid-2">
+          <article class="card version">
+            <div class="version-head">
+              <span class="badge">추천</span>
+              <h3>데스크톱 앱</h3>
+            </div>
+            <p>설치 후 바로 시작하는 독립 앱입니다. 편집기, AI 채팅, 실시간 미리보기가 한 화면에 들어 있어 처음 코딩하는 분께도 좋습니다.</p>
+            <ul class="checks">
+              <li>Windows 10 이상 / macOS 12 이상</li>
+              <li>템플릿에서 바로 시작</li>
+              <li>원클릭 배포와 변경 기록 내장</li>
+            </ul>
+            <div class="row-btns">
+              <a class="btn btn-primary" id="verWin" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.0.0.exe">Windows (.exe)</a>
+              <a class="btn btn-ghost" id="verMac" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.0.0.dmg">macOS (.dmg)</a>
+            </div>
+          </article>
+          <article class="card version">
+            <div class="version-head">
+              <h3>VS Code 확장</h3>
+            </div>
+            <p>이미 VS Code를 쓰고 있다면 확장으로 설치하세요. 사이드바에 AI 채팅이, 편집기 옆에 미리보기 패널이 열립니다.</p>
+            <ol class="steps">
+              <li><b>마켓플레이스:</b> 확장 탭에서 <code>Code AI</code> 검색 후 설치 <span class="muted">(곧 공개)</span></li>
+              <li><b>.vsix 파일:</b> 아래에서 파일을 받은 뒤 명령 팔레트에서 <code>Extensions: Install from VSIX…</code> 실행</li>
+              <li>또는 터미널에서:
+                <pre class="cmd"><code>code --install-extension codeai-1.0.0.vsix</code></pre>
+              </li>
+            </ol>
+            <div class="row-btns">
+              <a class="btn btn-ghost" id="dlVsix" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/codeai-1.0.0.vsix">.vsix 다운로드</a>
+              <span class="btn btn-ghost is-disabled" aria-disabled="true">마켓플레이스 (준비 중)</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 기능 -->
+    <section class="section" id="features">
+      <div class="container">
+        <h2 class="section-title">결과물을 보면서 만드는 경험</h2>
+        <p class="section-sub">Code AI 1.0에 들어 있는 기능입니다.</p>
+
+        <article class="feature-hero card">
+          <div class="feature-hero-text">
+            <span class="badge badge-accent">핵심 기능</span>
+            <h3>실시간 미리보기</h3>
+            <p>편집기 바로 옆에서 만들고 있는 결과물을 그대로 보여줍니다. 파일이 바뀌면 자동으로 새로고침됩니다.</p>
+            <ul class="checks">
+              <li>HTML 사이트 → 실제 페이지 렌더링</li>
+              <li>Markdown 문서 → 렌더링된 문서</li>
+              <li>이미지(PNG, JPG, SVG, GIF), PDF → 그대로 표시</li>
+            </ul>
+          </div>
+          <div class="feature-hero-art" aria-hidden="true">
+            <div class="mini">
+              <div class="mini-code"><i style="width:70%"></i><i style="width:50%"></i><i style="width:85%"></i><i style="width:40%"></i><i style="width:65%"></i></div>
+              <div class="mini-arrow">→</div>
+              <div class="mini-page"><b></b><span></span><span></span><em></em></div>
+            </div>
+          </div>
+        </article>
+
+        <div class="grid-3">
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg></div>
+            <h3>미리보기 클릭 수정</h3>
+            <p>미리보기에서 요소를 클릭하면 채팅에 첨부됩니다. "이거 빨간색으로"처럼 말하면 AI가 그 부분만 고칩니다.</p>
+          </article>
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg></div>
+            <h3>원클릭 배포</h3>
+            <p>버튼 하나로 프로젝트를 배포하고 공유 링크를 받으세요. 설정할 것이 없습니다.</p>
+          </article>
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/></svg></div>
+            <h3>변경 기록 / 되돌리기</h3>
+            <p>AI가 파일을 고칠 때마다 스냅샷을 저장합니다. 목록에서 원하는 시점으로 언제든 복구하세요.</p>
+          </article>
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <h3>템플릿</h3>
+            <p>쇼핑몰, 포트폴리오, 랜딩페이지, 보고서 문서 중에서 골라 빈 화면 없이 바로 시작하세요.</p>
+          </article>
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg></div>
+            <h3>한국어 최적화</h3>
+            <p>화면과 AI 지시문이 모두 한국어로 만들어졌습니다. 평소 말하듯 요청하면 됩니다.</p>
+          </article>
+          <article class="card feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+            <h3>자체 AI 모델</h3>
+            <p>오픈소스 코드 모델을 자체 서버에서 실행합니다. Google, OpenAI 같은 외부 API를 사용하지 않습니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 릴리스 노트 -->
+    <section class="section" id="releases">
+      <div class="container narrow">
+        <h2 class="section-title">릴리스 노트</h2>
+        <p class="section-sub">현재 버전: <b id="currentVersion">1.0.0</b></p>
+        <ol class="timeline">
+          <li class="tl-item is-next">
+            <div class="tl-head"><span class="tl-ver">1.1</span><span class="badge">예정</span></div>
+            <p>자동 업데이트로 배포 예정입니다. 데스크톱 앱을 실행하면 새 버전 알림이 표시되고, 바로 업데이트할 수 있습니다.</p>
+          </li>
+          <li class="tl-item">
+            <div class="tl-head"><span class="tl-ver">1.0.0</span><span class="badge badge-accent">최신</span></div>
+            <ul class="checks">
+              <li>실시간 미리보기 패널 (HTML, Markdown, 이미지, PDF)</li>
+              <li>미리보기 클릭으로 요소 선택 후 수정 요청</li>
+              <li>원클릭 배포와 공유 링크</li>
+              <li>변경 기록과 이전 버전 복구</li>
+              <li>템플릿: 쇼핑몰, 포트폴리오, 랜딩페이지, 보고서</li>
+              <li>다크 / 라이트 테마</li>
+            </ul>
+            <p class="muted" id="serverNotes" hidden></p>
+          </li>
+          <li class="tl-item is-later">
+            <div class="tl-head"><span class="tl-ver">2.0</span><span class="badge">이후</span></div>
+            <p>오프라인 모드: 내 PC에서 모델을 직접 실행합니다.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section cta-final">
+      <div class="container narrow center">
+        <h2 class="section-title">지금 바로 시작하세요</h2>
+        <p class="section-sub">무료로 다운로드하고 첫 프로젝트를 템플릿에서 만들어 보세요.</p>
+        <a class="btn btn-lg btn-primary" id="footerDl" href="https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.0.0.exe">다운로드</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>© 2026 Code AI</span>
+      <span class="muted">버전 1.0.0</span>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

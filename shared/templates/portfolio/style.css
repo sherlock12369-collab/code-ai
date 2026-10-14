@@ -1,0 +1,77 @@
+:root {
+  --bg: #0b0b0d;
+  --fg: #f2f2f3;
+  --muted: #8b8b94;
+  --line: #222227;
+  --accent: #7c5cff;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+.wrap { width: min(1100px, 100% - 48px); margin: 0 auto; }
+
+.top { position: sticky; top: 0; z-index: 5; background: rgba(11, 11, 13, .8); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top-inner { display: flex; justify-content: space-between; align-items: center; height: 64px; }
+.name { font-weight: 800; letter-spacing: -0.01em; }
+.top nav { display: flex; gap: 24px; color: var(--muted); }
+.top nav a:hover { color: var(--fg); }
+
+.intro { padding: 120px 0 100px; }
+.eyebrow { color: var(--accent); font-weight: 600; margin: 0 0 18px; }
+h1 { font-size: clamp(40px, 7vw, 84px); line-height: 1.08; letter-spacing: -0.04em; margin: 0 0 28px; font-weight: 800; }
+h1 em { font-style: normal; color: var(--accent); }
+.sub { max-width: 620px; color: var(--muted); font-size: 18px; margin: 0 0 28px; }
+.status { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 0 4px rgba(61, 220, 132, .2); }
+
+.section-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 28px; }
+h2 { font-size: 28px; letter-spacing: -0.02em; margin: 0; }
+.count { color: var(--muted); font-size: 14px; }
+
+.projects { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; }
+.project.large { grid-column: span 2; }
+.thumb {
+  aspect-ratio: 16 / 9; border-radius: 18px; display: grid; place-items: center; overflow: hidden;
+  font-size: clamp(28px, 4vw, 52px); font-weight: 800; letter-spacing: -0.03em; transition: transform .3s;
+}
+.project.large .thumb { aspect-ratio: 21 / 9; }
+.project:hover .thumb { transform: scale(.985); }
+.t1 { background: linear-gradient(135deg, #7c5cff, #2b1a7a); }
+.t2 { background: linear-gradient(135deg, #ffb36b, #ff5f6d); }
+.t3 { background: linear-gradient(135deg, #34d399, #0e7490); }
+.t4 { background: #f2f2f3; color: #0b0b0d; }
+.meta { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 4px 0; }
+.meta h3 { margin: 0; font-size: 18px; }
+.meta p { margin: 0; color: var(--muted); font-size: 14px; white-space: nowrap; }
+
+.about { padding: 120px 0 0; }
+.about h2 { margin-bottom: 28px; }
+.about-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; }
+.about-grid p { margin: 0; font-size: 18px; color: #c9c9ce; }
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: flex; flex-direction: column; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.timeline span { color: var(--muted); font-size: 14px; }
+.skills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 36px; }
+.skills span { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; color: #c9c9ce; }
+
+.contact { padding: 140px 0 100px; text-align: center; }
+.contact h2 { font-size: clamp(32px, 5vw, 56px); }
+.mail { display: inline-block; margin: 20px 0 28px; font-size: clamp(20px, 3vw, 32px); color: var(--accent); border-bottom: 2px solid transparent; }
+.mail:hover { border-color: var(--accent); }
+.links { display: flex; justify-content: center; gap: 24px; color: var(--muted); }
+.links a:hover { color: var(--fg); }
+.foot { padding: 28px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .projects, .about-grid { grid-template-columns: 1fr; }
+  .project.large { grid-column: auto; }
+  .meta { flex-direction: column; }
+}

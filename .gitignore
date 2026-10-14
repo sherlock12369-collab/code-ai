@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+*.vsix
+server/data/
+server/downloads/*
+!server/downloads/.gitkeep
+website/downloads/
+vscode-extension/templates/
+.codeai/
