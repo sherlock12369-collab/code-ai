@@ -11,7 +11,7 @@ import { PENDING_PREVIEW_KEY, startFromTemplate } from './templates';
 import { getRoot, resolveInRoot } from './workspace';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  // 사용자의 Claude API 키는 VS Code 보안 저장소(SecretStorage)에 둔다.
+  // 사용자의 API 키(Gemini 또는 Claude)는 VS Code 보안 저장소(SecretStorage)에 둔다.
   setApiKey(await context.secrets.get(SECRET_KEY));
   // 확장에 들어 있는 AI 서버를 켠다 (다른 PC에서도 서버 설치 불필요)
   try {

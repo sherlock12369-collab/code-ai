@@ -671,7 +671,7 @@
     } else {
       inner += `<div class="bubble">${m.error ? esc(m.content) : renderAnswer(m.content || '', m.streaming)}</div>`;
       if (m.needsKey) {
-        inner += `<div class="msg-actions"><button class="btn small primary" data-key>Claude API 키 입력</button></div>`;
+        inner += `<div class="msg-actions"><button class="btn small primary" data-key>API 키 입력</button></div>`;
       }
       if (m.files && m.files.length) {
         inner += '<div class="file-events">' + m.files.map((f) =>
@@ -1012,7 +1012,7 @@
 
   function applyKeyUi() {
     const s = state.settings;
-    $('#set-key-status').textContent = s.hasApiKey ? `저장된 키: ${s.apiKeyHint}` : '저장된 키가 없습니다. AI를 쓰려면 키를 입력하세요.';
+    $('#set-key-status').textContent = s.hasApiKey ? `저장된 키(${s.keyProvider === 'gemini' ? '무료 Gemini' : 'Claude'}): ${s.apiKeyHint}` : '저장된 키가 없습니다. AI를 쓰려면 키를 입력하세요.';
     $('#set-key-status').style.color = s.hasApiKey ? '' : 'var(--danger)';
     $('#set-key-clear').hidden = !s.hasApiKey;
     $('#set-key').value = '';
@@ -1097,6 +1097,8 @@
         applyKeyUi();
         $('#set-key-result').textContent = msg;
         $('#set-key-result').style.color = 'var(--ok)';
+        setModel = state.settings.model || null; // 다른 회사 키로 바꾸면 모델 목록도 바뀐다
+        loadSettingsModels();
       }
     } finally {
       btn.disabled = false;
@@ -1104,12 +1106,14 @@
   };
   $('#set-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#set-key-save').click(); });
   $('#set-key-clear').onclick = async () => {
-    if (!confirm('저장된 Claude API 키를 삭제할까요? 삭제하면 다시 입력할 때까지 AI를 쓸 수 없습니다.')) return;
+    if (!confirm('저장된 API 키를 삭제할까요? 삭제하면 다시 입력할 때까지 AI를 쓸 수 없습니다.')) return;
     state.settings = await api.apiKey.clear();
     applyKeyUi();
+    loadSettingsModels();
     checkServer();
   };
-  $('#set-key-console').onclick = (e) => { e.preventDefault(); api.apiKey.openConsole(); };
+  $('#set-key-console').onclick = (e) => { e.preventDefault(); api.apiKey.openConsole('gemini'); };
+  $('#set-key-console-claude').onclick = (e) => { e.preventDefault(); api.apiKey.openConsole('claude'); };
   $('#set-open-setup').onclick = () => { closeModal('#modal-settings'); openSetup(); };
   $('#set-save').onclick = async () => {
     const url = $('#set-server').value.trim();
@@ -1179,14 +1183,14 @@
     throw new SetupStop(message);
   }
 
-  const KEY_DETAIL = 'console.anthropic.com 에서 발급받은 본인의 API 키(sk-ant-…)를 붙여 넣으세요. 요금은 키 주인의 계정에 청구됩니다.';
+  const KEY_DETAIL = '무료: aistudio.google.com 에서 구글 계정으로 Gemini 키(AIza…)를 받아 붙여 넣으세요. 카드 등록이 필요 없습니다. (유료 Claude 키 sk-ant-… 도 됩니다)';
 
   function openSetup() {
     if (setup.running) { openModal('#modal-setup'); return; }
     for (const s of STEPS) { setStep(s, 'pending'); setStepActions(s, []); }
     stepEl('server').querySelector('.step-detail').textContent = '앱에 들어 있는 AI 서버를 실행합니다.';
     stepEl('key').querySelector('.step-detail').textContent = KEY_DETAIL;
-    stepEl('model').querySelector('.step-detail').textContent = '사용할 Claude 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.';
+    stepEl('model').querySelector('.step-detail').textContent = '사용할 AI 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.';
     $('#setup-models').hidden = true;
     $('#setup-key-row').hidden = true;
     $('#setup-key').value = '';
@@ -1247,7 +1251,10 @@
     } else {
       setStep('key', 'waiting', KEY_DETAIL);
     }
-    setStepActions('key', [{ label: '키 발급 받기 (console.anthropic.com)', onClick: () => api.apiKey.openConsole() }]);
+    setStepActions('key', [
+      { label: '무료 키 받기 (Google AI Studio)', primary: true, onClick: () => api.apiKey.openConsole('gemini') },
+      { label: 'Claude 키 받기 (유료)', onClick: () => api.apiKey.openConsole('claude') }
+    ]);
     row.hidden = false;
     $('#setup-key').focus();
     for (;;) {
@@ -1272,7 +1279,7 @@
     const host = $('#setup-models');
     host.hidden = false;
     renderModelList(host, r.models, setup.model, (m) => { setup.model = m.id; });
-    setStep('model', 'waiting', '사용할 모델을 고르세요. 가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.');
+    setStep('model', 'waiting', r.provider === 'gemini' ? '사용할 모델을 고르세요. 무료 키는 하루 쓸 수 있는 횟수가 정해져 있습니다.' : '사용할 모델을 고르세요. 가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.');
     await waitPrimary('이 모델로 시작');
     state.settings = await api.settings.set({ model: setup.model });
     const info = setup.models.find((m) => m.id === setup.model) || {};
@@ -1296,7 +1303,7 @@
     }
     if (!state.settings.setupDone) state.settings = await api.settings.set({ setupDone: true });
     closeModal('#modal-setup');
-    if (!setup.done) toast('Claude API 키는 설정(⚙) 또는 도움말 → 설정 도우미에서 입력할 수 있습니다.', '', 4000);
+    if (!setup.done) toast('API 키는 설정(⚙) 또는 도움말 → 설정 도우미에서 입력할 수 있습니다.', '', 4000);
   };
 
   api.onSettingsChanged((s) => { state.settings = s; });
@@ -1304,9 +1311,9 @@
   // ───────────────────────── 서버 상태 / 업데이트 ─────────────────────────
   let bannerDismissed = false;
   function setServerState(h) {
-    // 서버는 살아 있어도 Claude API 키가 없으면 AI를 쓸 수 없다.
+    // 서버는 살아 있어도 API 키가 없으면 AI를 쓸 수 없다.
     if (h.ok && h.hasApiKey === false) {
-      h = { ...h, ok: false, message: 'Claude API 키가 없습니다. 설정에서 본인의 API 키를 입력하세요.' };
+      h = { ...h, ok: false, message: 'API 키가 없습니다. 설정에서 무료 Gemini 키(또는 Claude 키)를 입력하세요.' };
     }
     state.serverOk = h.ok;
     const el = $('#server-status');

@@ -11,16 +11,24 @@ const updater = require('./updater');
 
 const IS_SMOKE = process.argv.includes('--smoke-test');
 const DEFAULT_SERVER = 'http://localhost:8787';
-// AI는 Claude API만 사용한다.
-const MODEL_RE = /^claude-[a-z0-9.-]+$/;
-const DEFAULT_MODEL = 'claude-opus-5-5';
+// AI는 Google Gemini(무료 키) 또는 Claude API를 쓴다. 어느 쪽인지는 키 모양으로 정한다.
+const MODEL_RE = /^(claude|gemini)-[a-z0-9.-]+$/;
+const DEFAULT_MODELS = { gemini: 'gemini-3.8-flash', claude: 'claude-opus-5-5' };
+const DEFAULT_MODEL = DEFAULT_MODELS.gemini;
 // 서버의 /api/models를 못 받을 때 쓰는 목록
 const MODELS = [
-  { id: 'claude-opus-5-5', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20', recommended: true },
-  { id: 'claude-sonnet-5-5', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
-  { id: 'claude-haiku-5-5', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' }
+  { id: 'gemini-3.8-flash', provider: 'gemini', label: '무료 — Gemini 3.8 Flash (추천)', price: '무료', recommended: true },
+  { id: 'gemini-3.5-flash-lite', provider: 'gemini', label: '무료·많이 — Gemini 3.5 Flash-Lite', price: '무료' },
+  { id: 'claude-opus-5-5', provider: 'claude', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20', recommended: true },
+  { id: 'claude-sonnet-5-5', provider: 'claude', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
+  { id: 'claude-haiku-5-5', provider: 'claude', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' }
 ];
-const KEY_CONSOLE_URL = 'https://console.anthropic.com/settings/keys';
+const KEY_CONSOLE_URLS = {
+  gemini: 'https://aistudio.google.com/apikey', // 카드 없이 무료 발급
+  claude: 'https://console.anthropic.com/settings/keys'
+};
+const providerOfKey = (key) => (/^AIza/.test(key || '') ? 'gemini' : 'claude');
+const providerOfModel = (id) => (/^gemini-/.test(id || '') ? 'gemini' : 'claude');
 // 원클릭 배포 공유 링크용 공용 서버 (배포 전용, server/fly.toml)
 const PUBLIC_DEPLOY_URL = 'https://code-ai-sites.fly.dev';
 
@@ -31,7 +39,7 @@ let settings = {
   customServerUrl: '',
   deployServerUrl: PUBLIC_DEPLOY_URL, // 빈 값이면 AI 서버(내장 서버 등)에 배포 → 내 PC에서만 열림
   model: null,              // null이면 서버 기본 모델
-  apiKeyEnc: null,          // 사용자의 Claude API 키 (safeStorage로 암호화, base64)
+  apiKeyEnc: null,          // 사용자의 API 키 — Gemini(AIza…) 또는 Claude(sk-ant-…) (safeStorage로 암호화, base64)
   apiKeyPlain: null,        // 암호화를 쓸 수 없는 환경에서만 사용
   setupDone: false,         // 처음 실행 설정 도우미 완료/건너뜀
   theme: 'system',
@@ -103,6 +111,12 @@ function storeApiKey(key) {
 
 const keyHeaders = (key = getApiKey()) => (key ? { 'x-api-key': key } : {});
 
+// 지금 키로 쓸 모델: 고른 모델이 키와 같은 회사면 그것, 아니면 그 회사 기본 모델
+function currentModel(key = getApiKey()) {
+  const provider = providerOfKey(key);
+  return settings.model && providerOfModel(settings.model) === provider ? settings.model : DEFAULT_MODELS[provider];
+}
+
 function publicSettings() {
   const { apiKeyEnc, apiKeyPlain, ...rest } = settings;
   const key = getApiKey();
@@ -110,6 +124,7 @@ function publicSettings() {
     ...rest,
     hasApiKey: !!key,
     apiKeyHint: key ? `${key.slice(0, 7)}…${key.slice(-4)}` : '',
+    keyProvider: key ? providerOfKey(key) : null,
     serverUrl: serverUrl(),
     embedded: embedded.status(),
     defaultModel: DEFAULT_MODEL,
@@ -368,7 +383,7 @@ async function health() {
     const data = await res.json();
     const hasApiKey = !!getApiKey();
     return {
-      ok: !!data.ok, hasApiKey, model: settings.model || data.model, serverModel: data.model, version: data.version, url,
+      ok: !!data.ok, hasApiKey, model: currentModel(), serverModel: data.model, version: data.version, url,
       embedded: settings.serverMode === 'embedded'
     };
   } catch (err) {
@@ -400,10 +415,12 @@ function startEmbedded() {
 }
 
 // 서버의 GET /api/models. 없으면(404 등) 고정 목록으로 대체.
+// 저장된 키의 회사(Gemini/Claude) 모델만 보여 준다. 키가 없으면 무료 Gemini 목록.
 async function listModels() {
+  const key = getApiKey();
+  const provider = key ? providerOfKey(key) : 'gemini';
   let models = null;
   let source = 'static';
-  let defaultModel = DEFAULT_MODEL;
   try {
     const res = await fetch(`${serverUrl()}/api/models`, { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
@@ -412,28 +429,33 @@ async function listModels() {
         models = data.models.filter((m) => m && MODEL_RE.test(String(m.id))).map((m) => ({
           id: String(m.id), label: m.label || '', price: m.price || ''
         }));
-        if (MODEL_RE.test(String(data.default))) defaultModel = data.default;
         source = 'server';
       }
     }
   } catch (_) { /* 서버 없음 → 고정 목록 */ }
-  if (!models || !models.length) models = MODELS.map((m) => ({ ...m }));
+  models = (models || []).filter((m) => providerOfModel(m.id) === provider);
+  // 예전 서버는 Gemini 목록을 안 주므로 고정 목록으로 채운다.
+  if (!models.length) models = MODELS.filter((m) => m.provider === provider).map((m) => ({ ...m }));
   for (const m of models) {
     const known = MODELS.find((k) => k.id === m.id);
+    m.provider = providerOfModel(m.id);
     if (known) {
       m.label = m.label || known.label;
       m.price = m.price || known.price;
       m.recommended = !!known.recommended;
     }
   }
-  return { models, source, selected: settings.model || null, defaultModel };
+  const selected = settings.model && providerOfModel(settings.model) === provider ? settings.model : null;
+  return { models, source, selected, defaultModel: DEFAULT_MODELS[provider], provider };
 }
 
 // 키가 올바른지 서버의 /api/check-key로 확인 (요금 없음). 올바르면 저장한다.
 async function setApiKey(key) {
   key = String(key || '').trim();
   if (!key) return { ok: false, error: 'API 키를 입력해 주세요.' };
-  if (!/^sk-ant-[\w-]{10,}$/.test(key)) return { ok: false, error: 'Claude API 키 형식이 아닙니다. sk-ant- 로 시작하는 키를 붙여 넣어 주세요.' };
+  if (!/^sk-ant-[\w-]{10,}$/.test(key) && !/^AIza[\w-]{20,}$/.test(key)) {
+    return { ok: false, error: 'API 키 형식이 아닙니다. 무료 Gemini 키(AIza…) 또는 Claude 키(sk-ant-…)를 붙여 넣어 주세요.' };
+  }
   if (settings.serverMode === 'embedded' && !embedded.url) await startEmbedded();
   const url = serverUrl();
   let data = {};
@@ -445,6 +467,11 @@ async function setApiKey(key) {
     return { ok: false, error: friendlyError(err, url) };
   }
   if (!data.ok) return { ok: false, error: data.error || '키를 확인하지 못했습니다.' };
+  if (data.provider && data.provider !== providerOfKey(key)) {
+    return { ok: false, error: 'AI 서버가 이 키를 지원하지 않습니다. 서버를 최신 버전으로 업데이트해 주세요.' };
+  }
+  // 다른 회사 키로 바꾸면 예전에 고른 모델은 버린다.
+  if (settings.model && providerOfModel(settings.model) !== providerOfKey(key)) settings.model = null;
   storeApiKey(key);
   send('settings:changed', publicSettings());
   return { ok: true, settings: publicSettings() };
@@ -472,13 +499,12 @@ async function runChat(id, payload) {
     const files = root ? await collectFiles([payload.activeFile, payload.selection && payload.selection.file]) : [];
     const body = { messages: payload.messages, files };
     if (payload.selection) body.selection = payload.selection;
-    if (settings.model) body.model = settings.model;
-
     const apiKey = getApiKey();
     if (!apiKey) {
-      emit({ type: 'error', message: 'Claude API 키가 없습니다. 설정에서 본인의 Claude API 키를 입력해 주세요.', needsKey: true });
+      emit({ type: 'error', message: 'API 키가 없습니다. 설정에서 무료 Gemini 키(또는 Claude 키)를 입력해 주세요.', needsKey: true });
       return;
     }
+    body.model = currentModel(apiKey);
 
     let res;
     try {
@@ -616,7 +642,7 @@ function registerIpc() {
   ipcMain.handle('models:list', () => listModels());
   ipcMain.handle('apikey:set', (_e, key) => setApiKey(key));
   ipcMain.handle('apikey:clear', () => clearApiKey());
-  ipcMain.handle('apikey:console', () => shell.openExternal(KEY_CONSOLE_URL));
+  ipcMain.handle('apikey:console', (_e, provider) => shell.openExternal(KEY_CONSOLE_URLS[provider] || KEY_CONSOLE_URLS.gemini));
 
   ipcMain.handle('preview:base', () => preview.base);
 

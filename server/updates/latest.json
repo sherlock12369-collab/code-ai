@@ -1,8 +1,8 @@
 {
-  "version": "1.1.1",
-  "notes": "Code AI 1.1.1 업데이트\n- 다른 PC에서 AI 서버가 실행되지 않던 문제를 고쳤습니다\n- macOS(Apple Silicon)에서 앱이 열리지 않던 문제를 고쳤습니다\n- 원클릭 배포 링크를 다른 사람도 열 수 있습니다 (설정에서 끌 수 있음)\n- AI는 Claude: 본인의 Claude API 키를 설정에 입력해 사용합니다",
+  "version": "1.2.0",
+  "notes": "Code AI 1.2.0 업데이트\n- 무료로 쓸 수 있게 됐습니다: Google Gemini 무료 API 키(카드 등록 필요 없음)를 설정에 넣으면 바로 사용\n- 모델: Gemini 3.8 Flash(무료, 추천) / Gemini 3.5 Flash-Lite(무료, 더 많이)\n- Claude API 키(유료)도 그대로 쓸 수 있습니다",
   "downloads": {
-    "win": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe",
-    "mac": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.1.dmg"
+    "win": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.2.0.exe",
+    "mac": "https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.2.0.dmg"
   }
 }

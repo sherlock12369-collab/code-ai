@@ -8,21 +8,31 @@ import { parseFileBlocks } from './lib/fileBlocks.js';
 import { buildMessages } from './lib/prompt.js';
 import { deploySite, DeployError } from './lib/deploy.js';
 import { safeRelativePath } from './lib/paths.js';
+import {
+  GEMINI_DEFAULT_MODEL, isGeminiKey, isGeminiModel, checkGeminiKey, streamGemini, geminiErrorMessage,
+} from './lib/gemini.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const VERSION = '1.1.1';
+export const VERSION = '1.2.0';
 
-// AI는 Claude API만 사용한다. API 키는 서버에 두지 않고, 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다.
+// AI는 Claude API 또는 Google Gemini API(무료 키 가능)를 쓴다. API 키는 서버에 두지 않고,
+// 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다. 키 모양(sk-ant-… / AIza…)으로 어느 쪽인지 고른다.
 export const DEFAULT_MODEL = 'claude-opus-5-5';
+export { GEMINI_DEFAULT_MODEL };
 
 // 사용자가 고를 수 있는 모델. MODEL 환경 변수 값(claude-로 시작해야 함)도 추가로 허용된다.
-// price: 100만 토큰당 입력 / 출력 요금 (USD)
+// price: 100만 토큰당 입력 / 출력 요금 (USD). Gemini는 무료 키로 쓸 수 있다(하루 횟수 제한).
 export const MODEL_CHOICES = [
-  { id: 'claude-opus-5-5', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20' },
-  { id: 'claude-sonnet-5-5', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
-  { id: 'claude-haiku-5-5', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' },
+  { id: 'claude-opus-5-5', provider: 'claude', label: '고품질 — Claude Opus 5.5 (추천)', price: '$4 / $20' },
+  { id: 'claude-sonnet-5-5', provider: 'claude', label: '균형 — Claude Sonnet 5.5', price: '$2 / $10' },
+  { id: 'claude-haiku-5-5', provider: 'claude', label: '빠름·저렴 — Claude Haiku 5.5', price: '$0.10 / $0.50' },
+  { id: 'gemini-3.8-flash', provider: 'gemini', label: '무료 — Gemini 3.8 Flash (추천)', price: '무료' },
+  { id: 'gemini-3.5-flash-lite', provider: 'gemini', label: '무료·많이 — Gemini 3.5 Flash-Lite', price: '무료' },
 ];
+
+export const providerOfModel = (id) => (isGeminiModel(id) ? 'gemini' : 'claude');
+export const providerOfKey = (key) => (isGeminiKey(key) ? 'gemini' : 'claude');
 
 // Haiku에는 서버 측 거절 대체(fallbacks)가 없다.
 const NO_FALLBACK = new Set(['claude-haiku-5-5']);
@@ -33,8 +43,9 @@ export function getConfig(env = process.env) {
   return {
     port: env.PORT !== undefined && env.PORT !== '' && Number.isInteger(Number(env.PORT)) ? Number(env.PORT) : 8787,
     host: env.HOST || '0.0.0.0',
-    // 테스트/프록시용. 비우면 Anthropic 공식 주소.
+    // 테스트/프록시용. 비우면 Anthropic / Google 공식 주소.
     apiBaseUrl: (env.CLAUDE_API_BASE_URL || '').replace(/\/+$/, ''),
+    geminiBaseUrl: (env.GEMINI_API_BASE_URL || '').replace(/\/+$/, ''),
     model: isClaudeModel(env.MODEL) ? env.MODEL : DEFAULT_MODEL,
     publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, ''),
     // 배포 전용 서버(인터넷 공용): AI 채팅은 끄고 사이트 배포/서비스만 한다.
@@ -55,6 +66,7 @@ export function resolveConfig(options = {}, env = process.env) {
   for (const [k, v] of Object.entries(options || {})) if (v !== undefined) cfg[k] = v;
   cfg.port = Number(cfg.port) || 0;
   cfg.apiBaseUrl = String(cfg.apiBaseUrl || '').replace(/\/+$/, '');
+  cfg.geminiBaseUrl = String(cfg.geminiBaseUrl || '').replace(/\/+$/, '');
   if (!isClaudeModel(cfg.model)) cfg.model = DEFAULT_MODEL;
   cfg.publicUrl = String(cfg.publicUrl || '').replace(/\/+$/, '');
   cfg.dataDir = path.resolve(cfg.dataDir);
@@ -146,7 +158,7 @@ function baseUrl(cfg, req) {
 
 // ---------- Claude API ----------
 
-// 요청에서 사용자의 Claude API 키를 꺼낸다. (x-api-key 헤더 또는 Authorization: Bearer)
+// 요청에서 사용자의 API 키(Claude 또는 Gemini)를 꺼낸다. (x-api-key 헤더 또는 Authorization: Bearer)
 export function apiKeyFrom(req) {
   let key = req.headers['x-api-key'];
   if (!key) {
@@ -157,7 +169,7 @@ export function apiKeyFrom(req) {
   return key || null;
 }
 
-const NO_KEY_MSG = 'Claude API 키가 없습니다. 설정에서 본인의 Claude API 키(sk-ant-…)를 입력하세요.';
+const NO_KEY_MSG = 'API 키가 없습니다. 설정에서 무료 Gemini 키(AIza…) 또는 Claude API 키(sk-ant-…)를 입력하세요.';
 
 function claudeClient(cfg, apiKey) {
   return new Anthropic({ apiKey, authToken: null, ...(cfg.apiBaseUrl ? { baseURL: cfg.apiBaseUrl } : {}) });
@@ -197,6 +209,9 @@ async function handleChat(cfg, req, res) {
     }
     model = body.model;
   }
+  // 키와 모델의 회사가 다르면 키 쪽 기본 모델을 쓴다. (Gemini 키 + Claude 모델 → Gemini Flash)
+  const provider = providerOfKey(apiKey);
+  if (providerOfModel(model) !== provider) model = provider === 'gemini' ? GEMINI_DEFAULT_MODEL : cfg.model;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -220,6 +235,8 @@ async function handleChat(cfg, req, res) {
   res.on('close', () => {
     if (!res.writableEnded) controller.abort();
   });
+
+  if (provider === 'gemini') return chatGemini(cfg, res, send, controller, { apiKey, model, system, messages });
 
   const params = {
     model,
@@ -269,15 +286,53 @@ async function handleChat(cfg, req, res) {
   res.end();
 }
 
+async function chatGemini(cfg, res, send, controller, { apiKey, model, system, messages }) {
+  let full = '';
+  let result;
+  try {
+    result = await streamGemini({
+      baseUrl: cfg.geminiBaseUrl, apiKey, model, system, messages, signal: controller.signal,
+      onText: (text) => {
+        full += text;
+        send({ type: 'delta', text });
+      },
+    });
+  } catch (err) {
+    if (controller.signal.aborted) return;
+    console.error('[chat] Gemini API 오류:', err.status ?? '', err.message);
+    send({ type: 'error', message: geminiErrorMessage(err) });
+    return res.end();
+  }
+  if (result.blockReason || (!full && /SAFETY|PROHIBITED|BLOCKLIST|RECITATION/.test(result.finishReason || ''))) {
+    send({ type: 'error', message: 'Gemini가 이 요청에는 답할 수 없다고 했습니다. 요청을 바꿔서 다시 시도해 보세요.' });
+    return res.end();
+  }
+  if (result.finishReason === 'MAX_TOKENS') {
+    send({ type: 'delta', text: '\n\n(답변이 너무 길어 중간에 끊겼습니다. 끝나지 않은 파일은 저장되지 않았습니다.)' });
+  }
+  for (const f of parseFileBlocks(full)) send({ type: 'file', path: f.path, content: f.content });
+  send({ type: 'done' });
+  res.end();
+}
+
 // ---------- /api/check-key ----------
 
 // 키가 맞는지 확인한다. 모델 정보 조회만 하므로 요금이 들지 않는다.
 async function handleCheckKey(cfg, req, res) {
   const apiKey = apiKeyFrom(req);
   if (!apiKey) return sendJson(res, 401, { ok: false, error: NO_KEY_MSG });
+  if (providerOfKey(apiKey) === 'gemini') {
+    try {
+      await checkGeminiKey(cfg.geminiBaseUrl, apiKey, GEMINI_DEFAULT_MODEL);
+      return sendJson(res, 200, { ok: true, provider: 'gemini', model: GEMINI_DEFAULT_MODEL });
+    } catch (err) {
+      const msg = geminiErrorMessage(err);
+      return sendJson(res, /올바르지 않습니다/.test(msg) ? 401 : 200, { ok: false, error: msg });
+    }
+  }
   try {
     await claudeClient(cfg, apiKey).models.retrieve(cfg.model, { timeout: 15000, maxRetries: 1 });
-    return sendJson(res, 200, { ok: true, model: cfg.model });
+    return sendJson(res, 200, { ok: true, provider: 'claude', model: cfg.model });
   } catch (err) {
     const status = err instanceof Anthropic.AuthenticationError ? 401 : 200;
     return sendJson(res, status, { ok: false, error: claudeErrorMessage(err) });
@@ -289,9 +344,9 @@ async function handleCheckKey(cfg, req, res) {
 function handleModels(cfg, res) {
   const models = allowedModels(cfg).map((id) => {
     const choice = MODEL_CHOICES.find((m) => m.id === id);
-    return { id, label: choice ? choice.label : `사용자 지정 (${id})`, price: choice ? choice.price : '' };
+    return { id, provider: providerOfModel(id), label: choice ? choice.label : `사용자 지정 (${id})`, price: choice ? choice.price : '' };
   });
-  return sendJson(res, 200, { models, default: cfg.model, provider: 'claude' });
+  return sendJson(res, 200, { models, default: cfg.model, defaults: { claude: cfg.model, gemini: GEMINI_DEFAULT_MODEL } });
 }
 
 // ---------- 배포 횟수 제한 ----------
@@ -464,7 +519,7 @@ if (isMain) {
   startServer().then(
     ({ port, config }) => {
       console.log(`Code AI 서버 v${VERSION} 실행 중: http://localhost:${port}`);
-      console.log(`  기본 모델: ${config.model} (Claude API — 사용자 키는 요청마다 x-api-key 헤더로 받음)`);
+      console.log(`  기본 모델: ${config.model} / Gemini ${GEMINI_DEFAULT_MODEL} (사용자 키는 요청마다 x-api-key 헤더로 받음)`);
     },
     (err) => {
       console.error(

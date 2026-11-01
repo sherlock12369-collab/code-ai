@@ -183,15 +183,15 @@
           <div class="row" id="set-custom-row"><input id="set-server" type="text" spellcheck="false" placeholder="http://서버주소:8787"><button class="btn" id="set-test">연결 테스트</button></div>
           <small id="set-test-result" class="muted"></small>
         </div>
-        <div class="field"><span>Claude API 키</span>
+        <div class="field"><span>API 키 (Gemini 무료 / Claude)</span>
           <small id="set-key-status" class="muted"></small>
-          <div class="row"><input id="set-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk-ant-…"><button class="btn" id="set-key-save">확인 후 저장</button><button class="btn ghost" id="set-key-clear">삭제</button></div>
+          <div class="row"><input id="set-key" type="password" spellcheck="false" autocomplete="off" placeholder="AIza… 또는 sk-ant-…"><button class="btn" id="set-key-save">확인 후 저장</button><button class="btn ghost" id="set-key-clear">삭제</button></div>
           <small id="set-key-result" class="muted"></small>
-          <small class="muted">본인의 키를 사용하며, 요금은 키 주인의 Anthropic 계정에 청구됩니다. 키는 이 PC에만 암호화해 저장됩니다. <a href="#" id="set-key-console">키 발급 받기</a></small>
+          <small class="muted">Gemini 키는 무료입니다(하루 횟수 제한). Claude 키는 요금이 키 주인의 Anthropic 계정에 청구됩니다. 키는 이 PC에만 암호화해 저장됩니다. <a href="#" id="set-key-console">무료 Gemini 키 받기</a> · <a href="#" id="set-key-console-claude">Claude 키 받기</a></small>
         </div>
-        <div class="field"><span>AI 모델 (Claude)</span>
+        <div class="field"><span>AI 모델</span>
           <div id="set-models" class="model-list"></div>
-          <small class="muted">가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.</small>
+          <small class="muted">저장된 키의 모델만 보입니다. Claude 가격은 100만 토큰당 입력 / 출력 요금(USD)입니다.</small>
         </div>
         <label class="check"><input type="checkbox" id="set-public-deploy"><span><b>공유 링크를 인터넷에 올리기</b> — 원클릭 배포한 사이트를 공용 배포 서버에 올려 누구나 링크로 열 수 있게 합니다. 끄면 내 PC에서만 열립니다.</span></label>
         <div class="row"><button class="btn" id="set-open-setup">설정 도우미 다시 실행</button><small class="muted">API 키 입력과 모델 선택을 다시 진행합니다.</small></div>
@@ -212,7 +212,7 @@
       <div class="modal-head">
         <div>
           <h2>AI 준비하기</h2>
-          <p class="muted small setup-sub">Code AI는 Claude AI를 사용합니다. 본인의 Claude API 키를 한 번만 입력하면 바로 쓸 수 있습니다. (인터넷 연결 필요)</p>
+          <p class="muted small setup-sub">Code AI는 Google Gemini(무료) 또는 Claude AI를 사용합니다. 본인의 API 키를 한 번만 입력하면 바로 쓸 수 있습니다. (인터넷 연결 필요)</p>
         </div>
       </div>
       <div class="modal-body">
@@ -228,9 +228,9 @@
           <li class="setup-step" data-step="key">
             <span class="step-icon"></span>
             <div class="step-body">
-              <div class="step-title">Claude API 키 입력</div>
-              <div class="step-detail">console.anthropic.com 에서 발급받은 본인의 API 키(sk-ant-…)를 붙여 넣으세요. 요금은 키 주인의 계정에 청구됩니다.</div>
-              <div class="row" id="setup-key-row" hidden><input id="setup-key" type="password" spellcheck="false" autocomplete="off" placeholder="sk-ant-…"></div>
+              <div class="step-title">API 키 입력</div>
+              <div class="step-detail">무료: aistudio.google.com 에서 구글 계정으로 Gemini 키(AIza…)를 받아 붙여 넣으세요. 카드 등록이 필요 없습니다.</div>
+              <div class="row" id="setup-key-row" hidden><input id="setup-key" type="password" spellcheck="false" autocomplete="off" placeholder="AIza… 또는 sk-ant-…"></div>
               <div class="step-actions"></div>
             </div>
           </li>
@@ -238,7 +238,7 @@
             <span class="step-icon"></span>
             <div class="step-body">
               <div class="step-title">AI 모델 선택</div>
-              <div class="step-detail">사용할 Claude 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.</div>
+              <div class="step-detail">사용할 AI 모델을 고릅니다. 나중에 설정에서 바꿀 수 있습니다.</div>
               <div id="setup-models" class="model-list" hidden></div>
               <div class="step-actions"></div>
             </div>

@@ -222,7 +222,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 await test('GET /api/health', async () => {
   const r = await fetch(`${base}/api/health`);
   assert.equal(r.headers.get('access-control-allow-origin'), '*');
-  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.1.1' });
+  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.2.0' });
 });
 
 await test('POST /api/deploy → /sites/<id>/ 서비스', async () => {
@@ -251,12 +251,12 @@ await test('POST /api/deploy 경로 탈출 → 400', async () => {
 
 await test('GET /updates/latest.json', async () => {
   const j = await (await fetch(`${base}/updates/latest.json`)).json();
-  assert.equal(j.version, '1.1.1');
-  assert.match(j.notes, /Claude/);
+  assert.equal(j.version, '1.2.0');
+  assert.match(j.notes, /Gemini/);
   assert.match(j.notes, /API 키/);
-  assert.match(j.notes, /1.1.1/);
-  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.1.1.exe');
-  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.1.1.dmg');
+  assert.match(j.notes, /1.2.0/);
+  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.2.0.exe');
+  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.2.0.dmg');
 });
 
 await test('OPTIONS 프리플라이트 (CORS, x-api-key 허용)', async () => {
@@ -352,8 +352,8 @@ await test('POST /api/chat, 거절(refusal) → error, 파일 저장 안 함', a
 
 console.log('모델 선택');
 
-await test('allowedModels: Claude 3개 + MODEL 값', () => {
-  assert.deepEqual(allowedModels({ model: 'claude-opus-5-5' }), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+await test('allowedModels: Claude 3개 + Gemini 2개 + MODEL 값', () => {
+  assert.deepEqual(allowedModels({ model: 'claude-opus-5-5' }), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'gemini-3.8-flash', 'gemini-3.5-flash-lite']);
   assert.deepEqual(allowedModels({ model: 'claude-opus-5' }).slice(-1), ['claude-opus-5']);
 });
 
@@ -398,10 +398,116 @@ await test('POST /api/chat model 지정/생략, Haiku는 fallbacks 없음', asyn
 
 await test('GET /api/models', async () => {
   const j = await (await fetch(`${base}/api/models`)).json();
-  assert.equal(j.provider, 'claude');
   assert.equal(j.default, 'claude-opus-5-5');
-  assert.deepEqual(j.models.map((m) => m.id), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+  assert.deepEqual(j.defaults, { claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash' });
+  assert.deepEqual(j.models.map((m) => m.id), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+  assert.deepEqual(j.models.map((m) => m.provider), ['claude', 'claude', 'claude', 'gemini', 'gemini']);
   assert.ok(j.models.every((m) => m.label && m.price));
+});
+
+console.log('Gemini (무료 키)');
+
+// 가짜 Gemini API: /v1beta/models/<id> 와 :streamGenerateContent?alt=sse
+async function fakeGemini({ texts = ['네'], finishReason = 'STOP', status = 200, errorMessage = 'fake error', blockReason } = {}) {
+  const http = await import('node:http');
+  const state = { requests: [] };
+  const srv = http.createServer(async (req, res) => {
+    let b = '';
+    for await (const c of req) b += c;
+    state.requests.push({ url: req.url, headers: req.headers, body: b ? JSON.parse(b) : null });
+    if (status !== 200) {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: { code: status, message: errorMessage, status: 'X' } }));
+    }
+    if (!req.url.includes(':streamGenerateContent')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ name: 'models/x' }));
+    }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    if (blockReason) {
+      res.write(`data: ${JSON.stringify({ promptFeedback: { blockReason } })}\r\n\r\n`);
+      return res.end();
+    }
+    texts.forEach((t, i) => {
+      const c = { content: { role: 'model', parts: [{ text: t }] } };
+      if (i === texts.length - 1) c.finishReason = finishReason;
+      res.write(`data: ${JSON.stringify({ candidates: [c] })}\r\n\r\n`);
+    });
+    res.end();
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  state.url = `http://127.0.0.1:${srv.address().port}`;
+  state.close = () => {
+    srv.closeAllConnections();
+    srv.close();
+  };
+  return state;
+}
+
+const GKEY = 'AIzaSy-test-key';
+
+await test('Gemini 키 → Gemini로 채팅 (Claude 모델을 골라도 Gemini 기본 모델), 파일 저장', async () => {
+  const fake = await fakeGemini({ texts: ['바꿨어요.\n```file:index.html\n<h1 style="color:red">', '안녕</h1>\n```\n'] });
+  try {
+    await withApp({ geminiBaseUrl: fake.url, apiBaseUrl: 'http://127.0.0.1:1' }, async (u) => {
+      const msgs = [{ role: 'user', content: '빨간색' }, { role: 'assistant', content: '네' }, { role: 'user', content: '다시' }];
+      const events = await sse(await chat(u, { model: 'claude-opus-5-5', messages: msgs }, GKEY));
+      assert.deepEqual(events.filter((e) => e.type === 'file'), [{ type: 'file', path: 'index.html', content: '<h1 style="color:red">안녕</h1>\n' }]);
+      assert.equal(events.at(-1).type, 'done');
+      const req = fake.requests.at(-1);
+      assert.equal(req.url, '/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse');
+      assert.equal(req.headers['x-goog-api-key'], GKEY);
+      assert.deepEqual(req.body.contents.map((c) => c.role), ['user', 'model', 'user']);
+      assert.match(req.body.systemInstruction.parts[0].text, /Code AI/);
+      // Flash-Lite를 고르면 그대로 쓴다
+      await sse(await chat(u, { model: 'gemini-3.5-flash-lite', messages: [{ role: 'user', content: 'a' }] }, GKEY));
+      assert.match(fake.requests.at(-1).url, /gemini-3\.5-flash-lite:stream/);
+    });
+  } finally {
+    fake.close();
+  }
+});
+
+await test('Gemini: 한도 초과(429) / 잘못된 키 / 차단 → 한국어 error', async () => {
+  for (const [opts, re] of [
+    [{ status: 429, errorMessage: 'Resource has been exhausted' }, /무료 사용 한도/],
+    [{ status: 400, errorMessage: 'API key not valid. Please pass a valid API key.' }, /키가 올바르지 않습니다/],
+    [{ blockReason: 'SAFETY' }, /답할 수 없다고/],
+  ]) {
+    const fake = await fakeGemini(opts);
+    try {
+      await withApp({ geminiBaseUrl: fake.url }, async (u) => {
+        const events = await sse(await chat(u, { messages: [{ role: 'user', content: 'a' }] }, GKEY));
+        assert.equal(events.at(-1).type, 'error');
+        assert.match(events.at(-1).message, re);
+      });
+    } finally {
+      fake.close();
+    }
+  }
+});
+
+await test('Gemini: 키 확인 ok / 틀림 401', async () => {
+  const good = await fakeGemini();
+  try {
+    await withApp({ geminiBaseUrl: good.url }, async (u) => {
+      const r = await fetch(`${u}/api/check-key`, { method: 'POST', headers: { 'x-api-key': GKEY } });
+      assert.deepEqual(await r.json(), { ok: true, provider: 'gemini', model: 'gemini-3.8-flash' });
+      assert.equal(good.requests.at(-1).url, '/v1beta/models/gemini-3.8-flash');
+    });
+  } finally {
+    good.close();
+  }
+  const bad = await fakeGemini({ status: 400, errorMessage: 'API key not valid.' });
+  try {
+    await withApp({ geminiBaseUrl: bad.url }, async (u) => {
+      const r = await fetch(`${u}/api/check-key`, { method: 'POST', headers: { 'x-api-key': 'AIzaWrong' } });
+      assert.equal(r.status, 401);
+      assert.match((await r.json()).error, /Gemini API 키가 올바르지 않습니다/);
+    });
+  } finally {
+    bad.close();
+  }
 });
 
 console.log('API 키 확인');
@@ -413,7 +519,7 @@ await test('POST /api/check-key: 키 없음 401 / 올바름 ok / 틀림 401', as
   try {
     await withApp({ apiBaseUrl: good.url }, async (u) => {
       r = await fetch(`${u}/api/check-key`, { method: 'POST', headers: { 'x-api-key': KEY } });
-      assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5' });
+      assert.deepEqual(await r.json(), { ok: true, provider: 'claude', model: 'claude-opus-5-5' });
       assert.equal(good.requests.at(-1).url.split('?')[0], '/v1/models/claude-opus-5-5');
     });
   } finally {
@@ -439,7 +545,7 @@ await test('DEPLOY_ONLY: 채팅/키 확인/모델은 404, 배포·사이트는 �
   assert.equal(getConfig({ DEPLOY_ONLY: '1' }).deployOnly, true);
   assert.equal(getConfig({}).deployOnly, false);
   await withApp({ deployOnly: true, publicUrl: 'https://sites.example.com' }, async (u) => {
-    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.1.1' });
+    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.2.0' });
     for (const [method, p] of [['POST', '/api/chat'], ['POST', '/api/check-key'], ['GET', '/api/models']]) {
       const r = await fetch(`${u}${p}`, { method, headers: { 'x-api-key': KEY }, body: method === 'POST' ? '{}' : undefined });
       assert.equal(r.status, 404, p);
@@ -473,7 +579,7 @@ await test('createApp에 일부 옵션만 넘겨도 동작', async () => {
   try {
     const j = await (await fetch(`http://127.0.0.1:${s5.address().port}/api/health`)).json();
     assert.equal(j.ok, true);
-    assert.equal(j.version, '1.1.1');
+    assert.equal(j.version, '1.2.0');
   } finally {
     s5.closeAllConnections();
     s5.close();

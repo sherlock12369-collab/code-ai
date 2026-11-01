@@ -1,19 +1,19 @@
 # Code AI 서버
 
 Code AI 데스크톱 앱, VS Code 확장, 웹사이트가 함께 사용하는 AI 서버입니다.
-AI는 **Claude API만** 사용합니다 (공식 SDK `@anthropic-ai/sdk`). 다른 AI 제공자나 로컬 모델은 쓰지 않습니다.
+AI는 **Google Gemini API(무료 키 가능)** 또는 **Claude API**(공식 SDK `@anthropic-ai/sdk`)를 씁니다. 요청의 키 모양으로 고릅니다: `AIza…` → Gemini, `sk-ant-…` → Claude.
 API 명세는 상위 폴더의 `SPEC.md`를 따릅니다.
 
 ## API 키 (사용자 본인 키)
 
-서버에는 API 키를 두지 않습니다. 각 사용자가 자기 Claude API 키를 앱/확장에 입력하고,
+서버에는 API 키를 두지 않습니다. 각 사용자가 자기 API 키(Gemini 또는 Claude)를 앱/확장에 입력하고,
 클라이언트가 요청마다 `x-api-key` 헤더(또는 `Authorization: Bearer <키>`)로 보냅니다.
-서버는 키를 저장하거나 로그에 남기지 않고 그 요청에만 사용합니다. 요금은 키 주인의 Anthropic 계정에 청구됩니다.
+서버는 키를 저장하거나 로그에 남기지 않고 그 요청에만 사용합니다. Claude 요금은 키 주인의 Anthropic 계정에 청구되고, Gemini 무료 키는 하루 횟수 제한만 있습니다.
 
-키 발급: https://console.anthropic.com/settings/keys
+키 발급: Gemini(무료, 카드 불필요) https://aistudio.google.com/apikey · Claude https://console.anthropic.com/settings/keys
 
 > 서버를 인터넷에 공개해 다른 사람이 쓰게 한다면, 키가 네트워크를 지나가므로 반드시 HTTPS(리버스 프록시 등) 뒤에 두세요.
-> 데스크톱 앱의 내장 서버는 `127.0.0.1`에만 열리므로 키가 PC 밖으로 나가는 곳은 Anthropic API뿐입니다.
+> 데스크톱 앱의 내장 서버는 `127.0.0.1`에만 열리므로 키가 PC 밖으로 나가는 곳은 Google/Anthropic API뿐입니다.
 
 ## 1. 준비
 
@@ -27,10 +27,10 @@ npm install
 npm start
 ```
 
-`Code AI 서버 v1.1.1 실행 중: http://localhost:8787` 이 보이면 성공입니다.
+`Code AI 서버 v1.2.0 실행 중: http://localhost:8787` 이 보이면 성공입니다.
 확인: http://localhost:8787/api/health
 
-테스트 (인터넷/API 키 없이 가짜 Claude API로 실행):
+테스트 (인터넷/API 키 없이 가짜 Claude·Gemini API로 실행):
 ```bash
 npm test
 ```
@@ -43,6 +43,7 @@ npm test
 | `HOST` | `0.0.0.0` | 바인딩 주소 |
 | `MODEL` | `claude-opus-5-5` | 기본 모델 (`claude-`로 시작해야 하며, 아니면 무시) |
 | `CLAUDE_API_BASE_URL` | (Anthropic 공식 주소) | 테스트/프록시용 API 주소 |
+| `GEMINI_API_BASE_URL` | (Google 공식 주소) | 테스트/프록시용 Gemini API 주소 |
 | `PUBLIC_URL` | (요청의 Host 헤더) | 배포 링크에 쓸 외부 주소. 예: `https://ai.example.com` |
 | `DATA_DIR` | `server/data` | 배포된 사이트 저장 위치 (`<DATA_DIR>/sites/<id>/`) |
 | `UPDATES_FILE` | `server/updates/latest.json` | 업데이트 정보 파일 위치 |
@@ -56,7 +57,7 @@ npm test
 |---|---|---|
 | POST | `/api/chat` | SSE 스트리밍. `delta` → `file` → `done` (실패 시 `error`). **키 필요**. 선택 항목 `"model"` |
 | POST | `/api/check-key` | 키 확인 (모델 정보만 조회, 요금 없음). `{ ok: true, model }` / `{ ok: false, error }` (잘못된 키는 401) |
-| GET | `/api/models` | 선택 가능한 Claude 모델 |
+| GET | `/api/models` | 선택 가능한 모델 (각 모델에 `provider`: `gemini`/`claude`) |
 | POST | `/api/deploy` | 파일 저장 후 `{ "url": ".../sites/<id>/" }` 반환 |
 | GET | `/api/health` | `{ ok, model, version }` |
 | GET | `/updates/latest.json` | 자동 업데이트 정보 (`updates/latest.json` 파일 내용) |
@@ -85,6 +86,8 @@ npm test
 | `claude-opus-5-5` | 고품질 — Claude Opus 5.5 (추천) | $4 / $20 |
 | `claude-sonnet-5-5` | 균형 — Claude Sonnet 5.5 | $2 / $10 |
 | `claude-haiku-5-5` | 빠름·저렴 — Claude Haiku 5.5 | $0.10 / $0.50 |
+| `gemini-3.8-flash` | 무료 — Gemini 3.8 Flash (Gemini 키 기본) | 무료 (하루 횟수 제한) |
+| `gemini-3.5-flash-lite` | 무료·많이 — Gemini 3.5 Flash-Lite | 무료 (하루 횟수 제한) |
 
 ### 다른 프로그램에 내장하기 (데스크톱 앱)
 
@@ -104,14 +107,14 @@ const { server, port, url } = await startServer({
 
 ## 5. 새 버전 배포 (자동 업데이트)
 
-1. 새 설치 파일을 `server/downloads/`에 넣습니다. (예: `CodeAI-Setup-1.1.1.exe`, `CodeAI-1.1.1.dmg`)
+1. 새 설치 파일을 `server/downloads/`에 넣습니다. (예: `CodeAI-Setup-1.2.0.exe`, `CodeAI-1.2.0.dmg`)
 2. `server/updates/latest.json`의 `version`, `notes`, `downloads`를 수정합니다. 서버 재시작은 필요 없습니다.
 
 ## 폴더 구조
 
 ```
 server/
-  server.js            HTTP 서버 / 라우팅 / SSE / Claude API 호출
+  server.js            HTTP 서버 / 라우팅 / SSE / Claude API 호출 (Gemini는 lib/gemini.js)
   lib/prompt.js        한국어 시스템 프롬프트, 컨텍스트 구성
   lib/fileBlocks.js    ```file:경로 블록 파싱
   lib/deploy.js        배포 저장 (경로 탈출 차단)

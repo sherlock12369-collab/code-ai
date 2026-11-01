@@ -85,7 +85,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
     try {
       const h = await health();
       if (!hasApiKey()) {
-        this.post({ type: 'server', ok: false, text: 'Claude API 키 필요' });
+        this.post({ type: 'server', ok: false, text: 'API 키 필요' });
         return false;
       }
       this.post({ type: 'server', ok: true, text: `연결됨 · ${getModel()}` });

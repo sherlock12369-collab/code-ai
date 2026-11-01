@@ -2,7 +2,7 @@
   "name": "codeai",
   "displayName": "Code AI",
   "description": "AI로 코드를 짜는 도구 — 실시간 미리보기, 클릭 수정, 변경 기록, 원클릭 배포, 템플릿",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "codeai",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -90,13 +90,13 @@
       },
       {
         "command": "codeai.setApiKey",
-        "title": "Claude API 키 입력",
+        "title": "API 키 입력 (Gemini 무료 / Claude)",
         "category": "Code AI",
         "icon": "$(key)"
       },
       {
         "command": "codeai.clearApiKey",
-        "title": "Claude API 키 삭제",
+        "title": "API 키 삭제",
         "category": "Code AI"
       }
     ],
@@ -153,18 +153,22 @@
         },
         "codeai.model": {
           "type": "string",
-          "default": "claude-opus-5-5",
+          "default": "gemini-3.8-flash",
           "enum": [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
             "claude-opus-5-5",
             "claude-sonnet-5-5",
             "claude-haiku-5-5"
           ],
           "enumDescriptions": [
-            "고품질 — Claude Opus 5.5 (추천) · 100만 토큰당 $4 / $20",
+            "무료 — Gemini 3.8 Flash (추천) · 무료 키 사용 (하루 횟수 제한)",
+            "무료·많이 — Gemini 3.5 Flash-Lite · 무료 키 사용, 더 많이 쓸 수 있음",
+            "고품질 — Claude Opus 5.5 · 100만 토큰당 $4 / $20",
             "균형 — Claude Sonnet 5.5 · 100만 토큰당 $2 / $10",
             "빠름·저렴 — Claude Haiku 5.5 · 100만 토큰당 $0.10 / $0.50"
           ],
-          "markdownDescription": "AI 답변에 사용할 Claude 모델. 본인의 Claude API 키가 필요합니다 (명령 **Code AI: Claude API 키 입력**). 요금은 키 주인의 Anthropic 계정에 청구됩니다."
+          "markdownDescription": "AI 답변에 사용할 모델. 명령 **Code AI: API 키 입력**으로 키를 넣으세요. Gemini 키(AIza…)는 aistudio.google.com 에서 카드 없이 무료로 받을 수 있습니다. Claude 키(sk-ant-…)는 요금이 키 주인의 Anthropic 계정에 청구됩니다. 키와 다른 회사 모델을 고르면 키 회사의 기본 모델을 씁니다."
         },
         "codeai.maxContextFiles": {
           "type": "number",

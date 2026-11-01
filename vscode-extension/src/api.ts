@@ -52,9 +52,14 @@ export function getServerUrl(): string {
   return (raw || embeddedUrl || 'http://localhost:8787').replace(/\/+$/, '');
 }
 
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+export type Provider = 'gemini' | 'claude';
+/** 회사별 기본 모델. Gemini는 무료 키로 쓸 수 있다. */
+export const DEFAULT_MODELS: Record<Provider, string> = { gemini: 'gemini-3.8-flash', claude: 'claude-opus-5-5' };
+export const DEFAULT_MODEL = DEFAULT_MODELS.gemini;
+export const providerOfKey = (key: string | undefined): Provider => (/^AIza/.test(key || '') ? 'gemini' : 'claude');
+export const providerOfModel = (id: string): Provider => (/^gemini-/.test(id) ? 'gemini' : 'claude');
 
-// 사용자의 Claude API 키 (SecretStorage에서 읽어 extension.ts가 넣어 준다). 서버에 x-api-key 헤더로 보낸다.
+// 사용자의 API 키 — Gemini(AIza…) 또는 Claude(sk-ant-…). SecretStorage에서 읽어 extension.ts가 넣어 준다. 서버에 x-api-key 헤더로 보낸다.
 let apiKey: string | undefined;
 export function setApiKey(key: string | undefined): void {
   apiKey = key || undefined;
@@ -62,12 +67,18 @@ export function setApiKey(key: string | undefined): void {
 export function hasApiKey(): boolean {
   return !!apiKey;
 }
+/** 저장된 키의 회사 (키가 없으면 무료 Gemini) */
+export function keyProvider(): Provider {
+  return apiKey ? providerOfKey(apiKey) : 'gemini';
+}
 
-export const NO_KEY_MESSAGE = 'Claude API 키가 없습니다. 명령 "Code AI: Claude API 키 입력"으로 본인의 키를 입력해 주세요.';
+export const NO_KEY_MESSAGE = 'API 키가 없습니다. 명령 "Code AI: API 키 입력"으로 무료 Gemini 키(또는 Claude 키)를 입력해 주세요.';
 
-/** 설정 "codeai.model" 에서 고른 모델 id */
+/** 설정 "codeai.model" 에서 고른 모델 id. 저장된 키와 회사가 다르면 그 회사 기본 모델. */
 export function getModel(): string {
-  return vscode.workspace.getConfiguration('codeai').get<string>('model') || DEFAULT_MODEL;
+  const id = vscode.workspace.getConfiguration('codeai').get<string>('model') || DEFAULT_MODEL;
+  const provider = keyProvider();
+  return providerOfModel(id) === provider ? id : DEFAULT_MODELS[provider];
 }
 
 export interface ModelInfo {
@@ -75,6 +86,7 @@ export interface ModelInfo {
   label: string;
   /** 100만 토큰당 입력 / 출력 요금 (USD) */
   price: string;
+  provider?: Provider;
 }
 
 export function listModels(): Promise<{ models: ModelInfo[]; default?: string }> {

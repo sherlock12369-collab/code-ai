@@ -59,7 +59,7 @@ contextBridge.exposeInMainWorld('codeai', {
   apiKey: {
     set: (key) => ipcRenderer.invoke('apikey:set', key),
     clear: () => ipcRenderer.invoke('apikey:clear'),
-    openConsole: () => ipcRenderer.invoke('apikey:console')
+    openConsole: (provider) => ipcRenderer.invoke('apikey:console', provider)
   },
   onSettingsChanged: (cb) => on('settings:changed', cb),
   updates: {
