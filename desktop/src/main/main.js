@@ -837,7 +837,7 @@ function buildMenu() {
     {
       label: '도움말',
       submenu: [
-        { label: '설정 도우미 (Claude API 키)…', click: cmd('setup') },
+        { label: '설정 도우미 (API 키)…', click: cmd('setup') },
         { label: '업데이트 확인', click: cmd('check-updates') },
         { label: `버전 ${app.getVersion()}`, enabled: false }
       ]
