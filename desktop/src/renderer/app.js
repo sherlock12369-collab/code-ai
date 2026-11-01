@@ -1183,7 +1183,7 @@
     throw new SetupStop(message);
   }
 
-  const KEY_DETAIL = '무료: aistudio.google.com 에서 구글 계정으로 Gemini 키(AIza…)를 받아 붙여 넣으세요. 카드 등록이 필요 없습니다. (유료 Claude 키 sk-ant-… 도 됩니다)';
+  const KEY_DETAIL = '무료: aistudio.google.com 에서 구글 계정으로 Gemini 키(AQ.… 또는 AIza…)를 받아 붙여 넣으세요. 카드 등록이 필요 없습니다. (유료 Claude 키 sk-ant-… 도 됩니다)';
 
   function openSetup() {
     if (setup.running) { openModal('#modal-setup'); return; }

@@ -27,7 +27,8 @@ const KEY_CONSOLE_URLS = {
   gemini: 'https://aistudio.google.com/apikey', // 카드 없이 무료 발급
   claude: 'https://console.anthropic.com/settings/keys'
 };
-const providerOfKey = (key) => (/^AIza/.test(key || '') ? 'gemini' : 'claude');
+// sk-ant-… 는 Claude, 그 밖(새 Gemini 키 AQ.…, 예전 키 AIza…)은 Gemini
+const providerOfKey = (key) => (/^sk-ant-/.test(key || '') ? 'claude' : 'gemini');
 const providerOfModel = (id) => (/^gemini-/.test(id || '') ? 'gemini' : 'claude');
 // 원클릭 배포 공유 링크용 공용 서버 (배포 전용, server/fly.toml)
 const PUBLIC_DEPLOY_URL = 'https://code-ai-sites.fly.dev';
@@ -39,7 +40,7 @@ let settings = {
   customServerUrl: '',
   deployServerUrl: PUBLIC_DEPLOY_URL, // 빈 값이면 AI 서버(내장 서버 등)에 배포 → 내 PC에서만 열림
   model: null,              // null이면 서버 기본 모델
-  apiKeyEnc: null,          // 사용자의 API 키 — Gemini(AIza…) 또는 Claude(sk-ant-…) (safeStorage로 암호화, base64)
+  apiKeyEnc: null,          // 사용자의 API 키 — Gemini(AQ.… / AIza…) 또는 Claude(sk-ant-…) (safeStorage로 암호화, base64)
   apiKeyPlain: null,        // 암호화를 쓸 수 없는 환경에서만 사용
   setupDone: false,         // 처음 실행 설정 도우미 완료/건너뜀
   theme: 'system',
@@ -453,8 +454,9 @@ async function listModels() {
 async function setApiKey(key) {
   key = String(key || '').trim();
   if (!key) return { ok: false, error: 'API 키를 입력해 주세요.' };
-  if (!/^sk-ant-[\w-]{10,}$/.test(key) && !/^AIza[\w-]{20,}$/.test(key)) {
-    return { ok: false, error: 'API 키 형식이 아닙니다. 무료 Gemini 키(AIza…) 또는 Claude 키(sk-ant-…)를 붙여 넣어 주세요.' };
+  // 모양은 넉넉히만 본다 (구글 키 모양이 바뀌어도 되게). 진짜 맞는지는 서버가 확인한다.
+  if (/\s/.test(key) || (/^sk-ant-/.test(key) ? !/^sk-ant-[\w-]{10,}$/.test(key) : !/^[\w.-]{20,}$/.test(key))) {
+    return { ok: false, error: 'API 키 형식이 아닙니다. 키 전체(무료 Gemini 키 AQ.… 또는 AIza…, Claude 키 sk-ant-…)를 빈칸 없이 붙여 넣어 주세요.' };
   }
   if (settings.serverMode === 'embedded' && !embedded.url) await startEmbedded();
   const url = serverUrl();

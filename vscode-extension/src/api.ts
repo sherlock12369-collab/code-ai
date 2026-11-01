@@ -56,10 +56,11 @@ export type Provider = 'gemini' | 'claude';
 /** 회사별 기본 모델. Gemini는 무료 키로 쓸 수 있다. */
 export const DEFAULT_MODELS: Record<Provider, string> = { gemini: 'gemini-3.8-flash', claude: 'claude-opus-5-5' };
 export const DEFAULT_MODEL = DEFAULT_MODELS.gemini;
-export const providerOfKey = (key: string | undefined): Provider => (/^AIza/.test(key || '') ? 'gemini' : 'claude');
+/** sk-ant-… 는 Claude, 그 밖(새 Gemini 키 AQ.…, 예전 키 AIza…)은 Gemini */
+export const providerOfKey = (key: string | undefined): Provider => (/^sk-ant-/.test(key || '') ? 'claude' : 'gemini');
 export const providerOfModel = (id: string): Provider => (/^gemini-/.test(id) ? 'gemini' : 'claude');
 
-// 사용자의 API 키 — Gemini(AIza…) 또는 Claude(sk-ant-…). SecretStorage에서 읽어 extension.ts가 넣어 준다. 서버에 x-api-key 헤더로 보낸다.
+// 사용자의 API 키 — Gemini(AQ.… / AIza…) 또는 Claude(sk-ant-…). SecretStorage에서 읽어 extension.ts가 넣어 준다. 서버에 x-api-key 헤더로 보낸다.
 let apiKey: string | undefined;
 export function setApiKey(key: string | undefined): void {
   apiKey = key || undefined;

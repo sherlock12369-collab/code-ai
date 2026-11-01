@@ -1,7 +1,7 @@
 # Code AI 서버
 
 Code AI 데스크톱 앱, VS Code 확장, 웹사이트가 함께 사용하는 AI 서버입니다.
-AI는 **Google Gemini API(무료 키 가능)** 또는 **Claude API**(공식 SDK `@anthropic-ai/sdk`)를 씁니다. 요청의 키 모양으로 고릅니다: `AIza…` → Gemini, `sk-ant-…` → Claude.
+AI는 **Google Gemini API(무료 키 가능)** 또는 **Claude API**(공식 SDK `@anthropic-ai/sdk`)를 씁니다. 요청의 키 모양으로 고릅니다: `sk-ant-…` → Claude, 그 밖(새 키 `AQ.…`, 예전 키 `AIza…`) → Gemini.
 API 명세는 상위 폴더의 `SPEC.md`를 따릅니다.
 
 ## API 키 (사용자 본인 키)
@@ -27,7 +27,7 @@ npm install
 npm start
 ```
 
-`Code AI 서버 v1.2.0 실행 중: http://localhost:8787` 이 보이면 성공입니다.
+`Code AI 서버 v1.3.0 실행 중: http://localhost:8787` 이 보이면 성공입니다.
 확인: http://localhost:8787/api/health
 
 테스트 (인터넷/API 키 없이 가짜 Claude·Gemini API로 실행):
@@ -107,7 +107,7 @@ const { server, port, url } = await startServer({
 
 ## 5. 새 버전 배포 (자동 업데이트)
 
-1. 새 설치 파일을 `server/downloads/`에 넣습니다. (예: `CodeAI-Setup-1.2.0.exe`, `CodeAI-1.2.0.dmg`)
+1. 새 설치 파일을 `server/downloads/`에 넣습니다. (예: `CodeAI-Setup-1.3.0.exe`, `CodeAI-1.3.0.dmg`)
 2. `server/updates/latest.json`의 `version`, `notes`, `downloads`를 수정합니다. 서버 재시작은 필요 없습니다.
 
 ## 폴더 구조

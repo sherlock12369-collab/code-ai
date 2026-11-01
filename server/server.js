@@ -14,10 +14,10 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 // AI는 Claude API 또는 Google Gemini API(무료 키 가능)를 쓴다. API 키는 서버에 두지 않고,
-// 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다. 키 모양(sk-ant-… / AIza…)으로 어느 쪽인지 고른다.
+// 사용자가 자기 키를 요청 헤더(x-api-key)로 보낸다. 키 모양으로 고른다: sk-ant-… → Claude, 그 밖(AQ.… / AIza…) → Gemini.
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 export { GEMINI_DEFAULT_MODEL };
 
@@ -169,7 +169,7 @@ export function apiKeyFrom(req) {
   return key || null;
 }
 
-const NO_KEY_MSG = 'API 키가 없습니다. 설정에서 무료 Gemini 키(AIza…) 또는 Claude API 키(sk-ant-…)를 입력하세요.';
+const NO_KEY_MSG = 'API 키가 없습니다. 설정에서 무료 Gemini 키(AQ.… 또는 AIza…) 또는 Claude API 키(sk-ant-…)를 입력하세요.';
 
 function claudeClient(cfg, apiKey) {
   return new Anthropic({ apiKey, authToken: null, ...(cfg.apiBaseUrl ? { baseURL: cfg.apiBaseUrl } : {}) });

@@ -1,10 +1,11 @@
 // Google Gemini API (무료 키 사용 가능). SDK 없이 REST로 호출한다.
-// 키는 aistudio.google.com 에서 카드 없이 발급받을 수 있다 (AIza…로 시작).
+// 키는 aistudio.google.com 에서 카드 없이 발급받을 수 있다. 새 키는 AQ.…, 예전 키는 AIza…로 시작한다.
 
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
 const OFFICIAL_BASE = 'https://generativelanguage.googleapis.com';
 
-export const isGeminiKey = (key) => typeof key === 'string' && /^AIza/.test(key);
+// Claude 키(sk-ant-…)가 아니면 Gemini 키로 본다. (구글이 키 모양을 AIza… → AQ.… 로 바꿨으므로 앞글자로 묶지 않는다)
+export const isGeminiKey = (key) => typeof key === 'string' && key !== '' && !/^sk-ant-/.test(key);
 export const isGeminiModel = (id) => typeof id === 'string' && /^gemini-[a-z0-9.-]+$/.test(id);
 
 export class GeminiError extends Error {

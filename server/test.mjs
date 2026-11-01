@@ -222,7 +222,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 await test('GET /api/health', async () => {
   const r = await fetch(`${base}/api/health`);
   assert.equal(r.headers.get('access-control-allow-origin'), '*');
-  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.2.0' });
+  assert.deepEqual(await r.json(), { ok: true, model: 'claude-opus-5-5', version: '1.3.0' });
 });
 
 await test('POST /api/deploy → /sites/<id>/ 서비스', async () => {
@@ -251,12 +251,12 @@ await test('POST /api/deploy 경로 탈출 → 400', async () => {
 
 await test('GET /updates/latest.json', async () => {
   const j = await (await fetch(`${base}/updates/latest.json`)).json();
-  assert.equal(j.version, '1.2.0');
+  assert.equal(j.version, '1.3.0');
   assert.match(j.notes, /Gemini/);
   assert.match(j.notes, /API 키/);
-  assert.match(j.notes, /1.2.0/);
-  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.2.0.exe');
-  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.2.0.dmg');
+  assert.match(j.notes, /1.3.0/);
+  assert.equal(j.downloads.win, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-Setup-1.3.0.exe');
+  assert.equal(j.downloads.mac, 'https://github.com/sherlock12369-collab/code-ai/releases/latest/download/CodeAI-1.3.0.dmg');
 });
 
 await test('OPTIONS 프리플라이트 (CORS, x-api-key 허용)', async () => {
@@ -444,7 +444,7 @@ async function fakeGemini({ texts = ['네'], finishReason = 'STOP', status = 200
   return state;
 }
 
-const GKEY = 'AIzaSy-test-key';
+const GKEY = 'AQ.Ab8RN6test-key_123';
 
 await test('Gemini 키 → Gemini로 채팅 (Claude 모델을 골라도 Gemini 기본 모델), 파일 저장', async () => {
   const fake = await fakeGemini({ texts: ['바꿨어요.\n```file:index.html\n<h1 style="color:red">', '안녕</h1>\n```\n'] });
@@ -494,6 +494,10 @@ await test('Gemini: 키 확인 ok / 틀림 401', async () => {
       const r = await fetch(`${u}/api/check-key`, { method: 'POST', headers: { 'x-api-key': GKEY } });
       assert.deepEqual(await r.json(), { ok: true, provider: 'gemini', model: 'gemini-3.8-flash' });
       assert.equal(good.requests.at(-1).url, '/v1beta/models/gemini-3.8-flash');
+      // 예전 모양(AIza…) 키도 Gemini
+      const r2 = await fetch(`${u}/api/check-key`, { method: 'POST', headers: { 'x-api-key': 'AIzaSyOldStyleKey123' } });
+      assert.equal((await r2.json()).provider, 'gemini');
+      assert.equal(good.requests.at(-1).headers['x-goog-api-key'], 'AIzaSyOldStyleKey123');
     });
   } finally {
     good.close();
@@ -545,7 +549,7 @@ await test('DEPLOY_ONLY: 채팅/키 확인/모델은 404, 배포·사이트는 �
   assert.equal(getConfig({ DEPLOY_ONLY: '1' }).deployOnly, true);
   assert.equal(getConfig({}).deployOnly, false);
   await withApp({ deployOnly: true, publicUrl: 'https://sites.example.com' }, async (u) => {
-    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.2.0' });
+    assert.deepEqual(await (await fetch(`${u}/api/health`)).json(), { ok: true, mode: 'deploy', version: '1.3.0' });
     for (const [method, p] of [['POST', '/api/chat'], ['POST', '/api/check-key'], ['GET', '/api/models']]) {
       const r = await fetch(`${u}${p}`, { method, headers: { 'x-api-key': KEY }, body: method === 'POST' ? '{}' : undefined });
       assert.equal(r.status, 404, p);
@@ -579,7 +583,7 @@ await test('createApp에 일부 옵션만 넘겨도 동작', async () => {
   try {
     const j = await (await fetch(`http://127.0.0.1:${s5.address().port}/api/health`)).json();
     assert.equal(j.ok, true);
-    assert.equal(j.version, '1.2.0');
+    assert.equal(j.version, '1.3.0');
   } finally {
     s5.closeAllConnections();
     s5.close();

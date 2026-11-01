@@ -102,13 +102,13 @@ export async function promptApiKey(context: vscode.ExtensionContext, onChange: (
   for (;;) {
     const key = await vscode.window.showInputBox({
       title: 'Code AI: API 키 입력',
-      prompt: '무료 Gemini 키(AIza…, aistudio.google.com 에서 카드 없이 발급) 또는 Claude 키(sk-ant-…, 유료)를 붙여 넣으세요. 키는 VS Code 보안 저장소에만 저장됩니다.',
-      placeHolder: 'AIza… 또는 sk-ant-…',
+      prompt: '무료 Gemini 키(AQ.… 또는 AIza…, aistudio.google.com 에서 카드 없이 발급) 또는 Claude 키(sk-ant-…, 유료)를 붙여 넣으세요. 키는 VS Code 보안 저장소에만 저장됩니다.',
+      placeHolder: 'AQ.… / AIza… 또는 sk-ant-…',
       password: true,
       ignoreFocusOut: true,
       validateInput: (v) =>
-        v.trim() && !/^sk-ant-[\w-]{10,}$/.test(v.trim()) && !/^AIza[\w-]{20,}$/.test(v.trim())
-          ? 'AIza… (Gemini) 또는 sk-ant-… (Claude) 로 시작하는 키를 입력하세요.'
+        v.trim() && (/\s/.test(v.trim()) || (/^sk-ant-/.test(v.trim()) ? !/^sk-ant-[\w-]{10,}$/.test(v.trim()) : !/^[\w.-]{20,}$/.test(v.trim())))
+          ? '키 전체(Gemini AQ.… / AIza…, Claude sk-ant-…)를 빈칸 없이 붙여 넣으세요.'
           : undefined,
     });
     if (key === undefined) {
