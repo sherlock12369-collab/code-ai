@@ -1,29 +1,34 @@
 name: Code AI 2.0 빌드 (Tauri)
 
-# v2.0.0 같은 태그를 올리면 Code AI(app/)의 Windows/macOS 설치 파일을 만들어 릴리스에 올린다.
-# (SEUL Chat은 따로 버전을 매긴다: release-seul-chat.yml, seul-chat-v* 태그)
-# (1.x Electron 앱은 release.yml이 v1.* 태그로 만든다)
+# v2.0.0 같은 태그를 올리면 Code AI 2.0(app/)의 Windows/macOS 설치 파일을 만들어 릴리스에 올린다.
+# (1.x Electron 앱은 release.yml이 v1.* 태그로, SEUL Chat은 release-seul-chat.yml이 seul-chat-v* 태그로 만든다)
 on:
   push:
     tags: ['v2.*']
   workflow_dispatch:
     inputs:
       tag:
-        description: '릴리스 태그 (예: v2.0.0-alpha.1)'
+        description: '릴리스 태그 (예: v2.0.0)'
         required: true
 
 permissions:
   contents: write
 
 jobs:
-  app:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { dir: app, os: windows-latest, args: --bundles nsis, out: release/bundle/nsis/*.exe }
+          - os: windows-latest
+            args: --bundles nsis
+            src: release/bundle/nsis/*.exe
+            name: CodeAI-Setup-VERSION.exe
           # Intel + Apple Silicon 둘 다 되는 universal 빌드, ad-hoc 서명(tauri.conf.json의 signingIdentity "-")
-          - { dir: app, os: macos-latest, args: --target universal-apple-darwin --bundles dmg, out: universal-apple-darwin/release/bundle/dmg/*.dmg }
+          - os: macos-latest
+            args: --target universal-apple-darwin --bundles dmg
+            src: universal-apple-darwin/release/bundle/dmg/*.dmg
+            name: CodeAI-VERSION.dmg
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ github.token }}
@@ -38,17 +43,20 @@ jobs:
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: ${{ matrix.dir }}/src-tauri
+          workspaces: app/src-tauri
       - run: npm ci
-        working-directory: ${{ matrix.dir }}
+        working-directory: app
       - run: npx tauri build ${{ matrix.args }}
-        working-directory: ${{ matrix.dir }}
+        working-directory: app
       - name: 릴리스에 업로드
         shell: bash
         run: |
-          pre=""; [[ "$TAG" == *-* ]] && pre="--prerelease"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "SEUL AI ${TAG#v}" --notes "Code AI · SEUL Chat ${TAG#v}" $pre
+          ver="${TAG#v}"
           shopt -s nullglob
-          files=(${{ matrix.dir }}/src-tauri/target/${{ matrix.out }})
-          echo "업로드: ${files[*]}"
-          gh release upload "$TAG" "${files[@]}" --clobber
+          files=(app/src-tauri/target/${{ matrix.src }})
+          [ ${#files[@]} -eq 1 ] || { echo "설치 파일을 찾지 못함: ${files[*]}"; exit 1; }
+          out="${{ matrix.name }}"; out="${out/VERSION/$ver}"
+          cp "${files[0]}" "$out"
+          pre=""; [[ "$ver" == *-* ]] && pre="--prerelease"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $pre --title "Code AI $ver" --notes "Code AI $ver"
+          gh release upload "$TAG" "$out" --clobber
