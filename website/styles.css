@@ -313,3 +313,24 @@ p { margin: 0; }
 .mac-help { margin-top: 14px; font-size: 0.92em; }
 .mac-help summary { cursor: pointer; color: var(--muted, #888); }
 .mac-help ol { margin: 10px 0 6px; }
+
+/* ───────── SEUL Chat ───────── */
+.seul-section { --seul: #4f9cf9; --seul-dark: #2f74d0; --seul-soft: rgba(79, 156, 249, 0.12); }
+:root[data-theme="dark"] .seul-section { --seul-soft: rgba(79, 156, 249, 0.18); }
+.seul-card { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; align-items: center; padding: 36px; border-radius: var(--radius); border: 1px solid var(--border); background: linear-gradient(135deg, var(--seul-soft), transparent 60%), var(--surface); }
+.seul-robot { width: 100%; max-width: 220px; height: auto; justify-self: center; }
+.seul-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.seul-body .section-title, .seul-body .section-sub { text-align: left; margin: 0; }
+.seul-badge { align-self: flex-start; background: var(--seul-soft); color: var(--seul-dark); border-color: transparent; }
+:root[data-theme="dark"] .seul-badge { color: var(--seul); }
+.btn-seul { background: var(--seul); color: #fff; border-color: var(--seul); }
+.btn-seul:hover { background: var(--seul-dark); border-color: var(--seul-dark); }
+.seul-blink { animation: seulBlink 4s infinite; transform-origin: center; transform-box: fill-box; }
+.seul-wave { animation: seulWave 2.4s ease-in-out infinite; transform-origin: 20% 90%; transform-box: fill-box; }
+@keyframes seulBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes seulWave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
+@media (prefers-reduced-motion: reduce) { .seul-blink, .seul-wave { animation: none; } }
+@media (max-width: 760px) {
+  .seul-card { grid-template-columns: minmax(0, 1fr); padding: 24px; gap: 20px; }
+  .seul-robot { max-width: 140px; }
+}

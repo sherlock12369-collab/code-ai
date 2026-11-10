@@ -27,6 +27,7 @@
       </a>
       <nav class="nav-links" aria-label="주요 메뉴">
         <a href="#versions">버전</a>
+        <a href="#seul-chat">SEUL Chat</a>
         <a href="#features">기능</a>
         <a href="#releases">릴리스 노트</a>
       </nav>
@@ -44,7 +45,7 @@
     <!-- 히어로 -->
     <section class="hero" id="top">
       <div class="container hero-inner">
-        <span class="pill"><span class="dot"></span> 버전 1.3.0 출시 · <a href="#releases">2.0 제작 중</a></span>
+        <span class="pill"><span class="dot"></span> 버전 1.3.0 출시 · <a href="#seul-chat">SEUL Chat 1.0 출시</a> · <a href="#releases">2.0 제작 중</a></span>
         <h1>만드는 그대로 보면서,<br><span class="accent-text">AI와 함께 코딩하세요.</span></h1>
         <p class="lead">Code AI는 편집기 옆에서 결과물을 실시간으로 보여주는 AI 코딩 도구입니다. 말로 요청하고, 화면에서 바로 확인하고, 클릭 한 번으로 배포하세요.</p>
 
@@ -165,6 +166,51 @@
               <span class="btn btn-ghost is-disabled" aria-disabled="true">마켓플레이스 (준비 중)</span>
             </div>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEUL Chat -->
+    <section class="section seul-section" id="seul-chat">
+      <div class="container">
+        <div class="seul-card">
+          <svg class="seul-robot" viewBox="0 0 200 200" aria-hidden="true">
+            <line x1="100" y1="40" x2="100" y2="20" stroke="#2f74d0" stroke-width="6" stroke-linecap="round"/>
+            <circle class="seul-antenna" cx="100" cy="16" r="11" fill="#ffc94a"/>
+            <rect x="28" y="40" width="144" height="122" rx="58" fill="#4f9cf9"/>
+            <g class="seul-wave"><rect x="166" y="78" width="18" height="36" rx="9" fill="#2f74d0"/><circle cx="175" cy="72" r="11" fill="#2f74d0"/></g>
+            <rect x="18" y="84" width="18" height="34" rx="9" fill="#2f74d0"/>
+            <rect x="46" y="60" width="108" height="80" rx="38" fill="#eaf4ff"/>
+            <ellipse class="seul-blink" cx="78" cy="96" rx="10" ry="13" fill="#1d2a3a"/>
+            <ellipse class="seul-blink" cx="122" cy="96" rx="10" ry="13" fill="#1d2a3a"/>
+            <circle cx="81" cy="91" r="3.5" fill="#fff"/><circle cx="125" cy="91" r="3.5" fill="#fff"/>
+            <ellipse cx="62" cy="117" rx="9" ry="5.5" fill="#ff9fb0"/><ellipse cx="138" cy="117" rx="9" ry="5.5" fill="#ff9fb0"/>
+            <path d="M89 118 Q100 129 111 118" fill="none" stroke="#1d2a3a" stroke-width="5" stroke-linecap="round"/>
+          </svg>
+          <div class="seul-body">
+            <span class="badge seul-badge">새 앱 · 1.0.0</span>
+            <h2 class="section-title">SEUL Chat</h2>
+            <p class="section-sub">귀여운 파란 로봇 <b>슬</b>과 평소에 대화하는 앱이에요. ChatGPT처럼 무엇이든 물어보세요. 무료 Gemini 키 하나면 돼요.</p>
+            <ul class="checks">
+              <li>성격 고르기: 😊 친구 · 📚 선생님 · 🗣️ 영어 회화 · 🗂️ 똑똑한 비서</li>
+              <li>사진을 넣고 물어보기 (붙여넣기·끌어다 놓기도 돼요)</li>
+              <li>대화 기록과 검색</li>
+              <li>“이거 만들어 줘” → 버튼 하나로 Code AI에서 바로 만들기</li>
+              <li>Code AI와 API 키를 같이 써요 (한 번만 입력)</li>
+            </ul>
+            <div class="row-btns">
+              <a class="btn btn-seul" id="seulWin" href="https://github.com/sherlock12369-collab/code-ai/releases/download/seul-chat-v1.0.0/SEULChat-Setup-1.0.0.exe">Windows (.exe) · 2.3MB</a>
+              <a class="btn btn-ghost" id="seulMac" href="https://github.com/sherlock12369-collab/code-ai/releases/download/seul-chat-v1.0.0/SEULChat-1.0.0.dmg">macOS (.dmg)</a>
+            </div>
+            <details class="mac-help">
+              <summary>설치할 때 경고 창이 뜨면</summary>
+              <ol class="steps">
+                <li><b>Windows</b>: “Windows의 PC 보호” 창이 뜨면 <b>추가 정보 → 실행</b>을 누르세요.</li>
+                <li><b>macOS</b>: 앱을 <b>응용 프로그램</b> 폴더로 옮긴 뒤 <b>오른쪽 클릭 → 열기</b>. 그래도 안 되면 <b>시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기</b>.</li>
+              </ol>
+              <p class="muted">유료 코드 서명을 하지 않은 앱이라 처음 한 번 뜨는 안내예요.</p>
+            </details>
+          </div>
         </div>
       </div>
     </section>
