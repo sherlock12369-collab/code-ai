@@ -1,0 +1,21 @@
+{
+  "name": "seul-ai-app",
+  "productName": "Code AI",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "Code AI 2.0 (Tauri) — 실시간 미리보기가 있는 AI 코딩 도구",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "ui": "node scripts/prepare-ui.mjs",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.52.2"
+  }
+}

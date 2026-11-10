@@ -8,3 +8,4 @@ server/downloads/*
 website/downloads/
 vscode-extension/templates/
 .codeai/
+progress/

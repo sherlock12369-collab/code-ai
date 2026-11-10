@@ -3,7 +3,7 @@ name: 설치 파일 빌드
 # v1.0.0 같은 태그를 올리면 Windows/macOS 설치 파일과 VS Code 확장을 만들어 릴리스에 올린다.
 on:
   push:
-    tags: ['v*']
+    tags: ['v1.*']
   workflow_dispatch:
     inputs:
       tag:
