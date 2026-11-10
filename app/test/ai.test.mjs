@@ -136,3 +136,34 @@ test('SEUL Chat: 마지막이 사용자 말이 아니면 보내지 않는다', a
   const r = await E.talk({ fetch: async () => { throw new Error('부르면 안 됨'); }, key: KEY, messages: [{ role: 'assistant', content: 'hi' }] });
   assert.match(r.error, /비어/);
 });
+
+test('Flash가 첫 글자를 너무 오래 안 주면 기다리지 않고 Flash-Lite로 바꾼다', async () => {
+  const hang = (url, init) => new Promise((_, reject) => {
+    init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  });
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push(url);
+    return calls.length === 1 ? hang(url, init) : sse([geminiText('빨라요')]);
+  };
+  const t0 = Date.now();
+  const r = await E.chat({ ...base, fetch, firstTextTimeout: 50 });
+  assert.ok(Date.now() - t0 < 2000);
+  assert.match(calls[1], /gemini-3\.5-flash-lite/);
+  assert.equal(r.text, '빨라요');
+});
+
+test('사용자가 멈추면 Flash-Lite로 바꾸지 않고 멈춘다', async () => {
+  const ctrl = new AbortController();
+  const fetch = (url, init) => new Promise((_, reject) => {
+    init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+    setTimeout(() => ctrl.abort(), 10);
+  });
+  await assert.rejects(E.chat({ ...base, fetch, signal: ctrl.signal, firstTextTimeout: 5000 }), { name: 'AbortError' });
+});
+
+test('빈 대답이면 다시 답하기 안내', async () => {
+  const { fetch } = mockFetch([() => sse([{ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }])]);
+  const r = await E.talk({ ...base, fetch });
+  assert.match(r.error, /다시 답하기/);
+});

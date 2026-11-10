@@ -194,7 +194,7 @@
     const streaming = idx === state.streamingIdx;
     const body = m.error
       ? esc(m.content)
-      : (m.content ? md(m.content) : '') + (streaming && !m.content ? '<span class="s-dots"><i></i><i></i><i></i></span>' : '');
+      : (m.content ? md(m.content) : streaming ? '' : '<span style="color:var(--muted)">답을 받지 못했어요. "다시 답하기"를 눌러 보세요.</span>') + (streaming && !m.content ? '<span class="s-dots"><i></i><i></i><i></i></span>' : '');
     const actions = streaming ? '' : `<div class="s-actions">
       ${m.error ? '' : `<button class="s-act" data-copy="${idx}">${ICON.copy}복사</button>`}
       ${idx === state.chat.messages.length - 1 ? `<button class="s-act" data-retry>${ICON.retry}다시 답하기</button>` : ''}

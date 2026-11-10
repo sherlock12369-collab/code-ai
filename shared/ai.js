@@ -318,18 +318,31 @@
    * 서버가 바쁘면(5xx) 답이 나오기 전까지 1·2·4초 뒤 다시 해 보고, Gemini는 그래도 안 되면 Flash-Lite로 바꾼다.
    * 실패하면 { error, needsKey? }를 돌려준다. (예외를 던지지 않는다. 취소만 AbortError)
    */
-  async function chat({ fetch, key, model, messages, files, selection, signal, onText, onNotice, retryDelays, system }) {
+  async function chat({ fetch, key, model, messages, files, selection, signal, onText, onNotice, retryDelays, firstTextTimeout, system }) {
     const built = buildMessages(messages, files, selection, system);
     if (!built.messages.length) return { error: '메시지가 비어 있습니다.' };
-    const r = await stream({ fetch, key, model, system: built.system, messages: built.messages, signal, onText, onNotice, retryDelays });
+    const r = await stream({ fetch, key, model, system: built.system, messages: built.messages, signal, onText, onNotice, retryDelays, firstTextTimeout });
     return r.error ? r : { ...r, files: parseFileBlocks(r.text) };
   }
 
   const BUSY_SKIP_MS = 10 * 60 * 1000;
-  const busyUntil = new Map(); // 모델 id → 이 시각까지 건너뜀
+  // 대신할 모델이 있을 때, 이 시간 안에 첫 글자가 안 오면 바쁜 것으로 보고 바꾼다.
+  // (바쁜 Gemini Flash는 503을 주기까지 20초 넘게 붙잡고 있기도 한다)
+  const FIRST_TEXT_TIMEOUT_MS = 10 * 1000;
+  // 모델 id → 이 시각까지 건너뜀. 새로고침·재시작해도 남도록 localStorage에도 적는다.
+  const BUSY_STORE = 'seulai.busyUntil';
+  const busyUntil = new Map();
+  try {
+    const saved = JSON.parse(root.localStorage.getItem(BUSY_STORE) || '{}');
+    for (const [k, v] of Object.entries(saved)) if (v > Date.now()) busyUntil.set(k, v);
+  } catch (_) { /* 저장소 없음 (테스트 등) */ }
+  function markBusy(m) {
+    busyUntil.set(m, Date.now() + BUSY_SKIP_MS);
+    try { root.localStorage.setItem(BUSY_STORE, JSON.stringify(Object.fromEntries(busyUntil))); } catch (_) { /* 무시 */ }
+  }
 
   // 다시 시도 + Flash-Lite 전환을 포함한 스트리밍 한 번. Code AI와 SEUL Chat이 함께 쓴다.
-  async function stream({ fetch, key, model, system, messages, signal, onText, onNotice, retryDelays = [1000, 2000, 4000] }) {
+  async function stream({ fetch, key, model, system, messages, signal, onText, onNotice, retryDelays = [1000, 2000, 4000], firstTextTimeout = FIRST_TEXT_TIMEOUT_MS }) {
     const provider = providerOfKey(key);
     model = modelFor(key, model);
     const built = { system, messages };
@@ -358,15 +371,30 @@
       if (mi > 0) onNotice && onNotice(BUSY_NOTICE);
       const delays = isLast ? retryDelays : [];
       for (let attempt = 0; attempt <= delays.length; attempt++) {
+        // 대신할 모델이 남아 있으면 첫 글자를 기다리는 시간에 제한을 둔다.
+        const ctrl = new AbortController();
+        const onAbort = () => ctrl.abort();
+        if (signal) {
+          if (signal.aborted) ctrl.abort();
+          else signal.addEventListener('abort', onAbort, { once: true });
+        }
+        let timedOut = false;
+        let timer = isLast ? null : setTimeout(() => { timedOut = true; ctrl.abort(); }, firstTextTimeout);
+        const emitOnce = (t) => {
+          if (timer) { clearTimeout(timer); timer = null; }
+          emit(t);
+        };
         try {
-          const r = await once({ fetch, key, model: m, system: built.system, messages: built.messages, signal, onText: emit, onRestart: restart });
+          const r = await once({ fetch, key, model: m, system: built.system, messages: built.messages, signal: ctrl.signal, onText: emitOnce, onRestart: restart });
           if (r.refused || (r.refusedIfEmpty && !full)) {
             const who = provider === 'gemini' ? 'Gemini' : 'Claude';
             return { error: `${who}가 이 요청에는 답할 수 없다고 했습니다. 요청을 바꿔서 다시 시도해 보세요.` };
           }
+          if (!full.trim()) return { error: '답을 받지 못했어요. "다시 답하기"를 눌러 보세요.', empty: true };
           return { text: full, maxTokens: r.maxTokens, model: m };
         } catch (err) {
-          if (err && err.name === 'AbortError') throw err;
+          if (err && err.name === 'AbortError' && !timedOut) throw err;
+          if (timedOut) err = new AIError(provider, 504, '첫 응답이 너무 늦음');
           lastErr = err;
           // 답이 이미 나오기 시작했거나, 바쁜 게 아닌 오류면 다시 하지 않는다.
           if (full || !isBusy(err)) {
@@ -374,10 +402,13 @@
             return { error: full ? '응답을 받는 중 연결이 끊어졌습니다: ' + message : message, needsKey: err instanceof AIError && err.status === 401 };
           }
           if (!isLast) {
-            busyUntil.set(m, Date.now() + BUSY_SKIP_MS);
+            markBusy(m);
             break;
           }
           if (attempt < delays.length) await sleep(delays[attempt], signal);
+        } finally {
+          if (timer) clearTimeout(timer);
+          if (signal) signal.removeEventListener('abort', onAbort);
         }
       }
     }
@@ -405,12 +436,12 @@
   const personaOf = (id) => PERSONAS.find((p) => p.id === id) || PERSONAS[0];
 
   /** SEUL Chat 대화 한 번. messages는 [{ role, content, images? }]. 결과: { text } 또는 { error } */
-  async function talk({ fetch, key, model, persona, messages, signal, onText, onNotice, retryDelays }) {
+  async function talk({ fetch, key, model, persona, messages, signal, onText, onNotice, retryDelays, firstTextTimeout }) {
     const history = (messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && (m.content || (m.images && m.images.length)));
     while (history.length && history[0].role !== 'user') history.shift();
     if (!history.length || history[history.length - 1].role !== 'user') return { error: '메시지가 비어 있습니다.' };
     const system = `${SEUL_BASE}\n${personaOf(persona).prompt}`;
-    return stream({ fetch, key, model, system, messages: history, signal, onText, onNotice, retryDelays });
+    return stream({ fetch, key, model, system, messages: history, signal, onText, onNotice, retryDelays, firstTextTimeout });
   }
 
   /** 첫 질문으로 대화 제목 만들기 (AI를 부르지 않고 앞부분을 자른다) */
