@@ -1,0 +1,62 @@
+name: SEUL Chat 빌드
+
+# seul-chat-v1.0.0 같은 태그를 올리면 SEUL Chat(chat/)의 Windows/macOS 설치 파일을 만들어 릴리스에 올린다.
+# 이 릴리스는 "Latest"로 표시하지 않는다. (사이트의 Code AI 다운로드 링크가 releases/latest 를 쓰기 때문)
+on:
+  push:
+    tags: ['seul-chat-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '릴리스 태그 (예: seul-chat-v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --bundles nsis
+            src: release/bundle/nsis/*.exe
+            name: SEULChat-Setup-VERSION.exe
+          # Intel + Apple Silicon 둘 다 되는 universal 빌드, ad-hoc 서명(tauri.conf.json의 signingIdentity "-")
+          - os: macos-latest
+            args: --target universal-apple-darwin --bundles dmg
+            src: universal-apple-darwin/release/bundle/dmg/*.dmg
+            name: SEULChat-VERSION.dmg
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: chat/src-tauri
+      - run: npm ci
+        working-directory: chat
+      - run: npx tauri build ${{ matrix.args }}
+        working-directory: chat
+      - name: 릴리스에 업로드
+        shell: bash
+        run: |
+          ver="${TAG#seul-chat-v}"
+          shopt -s nullglob
+          files=(chat/src-tauri/target/${{ matrix.src }})
+          [ ${#files[@]} -eq 1 ] || { echo "설치 파일을 찾지 못함: ${files[*]}"; exit 1; }
+          out="${{ matrix.name }}"; out="${out/VERSION/$ver}"
+          cp "${files[0]}" "$out"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --latest=false \
+            --title "SEUL Chat $ver" --notes-file chat/RELEASE_NOTES.md
+          gh release upload "$TAG" "$out" --clobber

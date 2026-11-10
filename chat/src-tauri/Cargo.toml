@@ -1,6 +1,6 @@
 [package]
 name = "seul-chat"
-version = "2.0.0-alpha.1"
+version = "1.0.0"
 description = "SEUL Chat — 귀여운 로봇 슬과 평소에 대화하는 앱"
 edition = "2021"
 

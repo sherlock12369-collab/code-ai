@@ -2,7 +2,8 @@
 // 사용: node scripts/smoke.mjs ["자바스크립트 식"]
 const port = process.env.CDP_PORT || 9333;
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-const page = targets.find((t) => t.type === 'page' && /tauri\.localhost|localhost/.test(t.url)) || targets.find((t) => t.type === 'page');
+const match = process.env.CDP_MATCH; // 예: CDP_MATCH=localhost:5051 → 주소에 이 글이 든 탭
+const page = (match && targets.find((t) => t.type === 'page' && t.url.includes(match))) || targets.find((t) => t.type === 'page' && /tauri.localhost|127.0.0.1:14/.test(t.url)) || targets.find((t) => t.type === 'page');
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener('open', r, { once: true }));
 let n = 0;

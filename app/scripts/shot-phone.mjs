@@ -1,7 +1,8 @@
 // 개발용: 폰 세로 크기(390x844)로 흉내 내서 화면을 PNG로 저장한다. 사용: CDP_PORT=9334 node scripts/shot-phone.mjs out.png ["실행할 JS"]
 import { writeFileSync } from 'node:fs';
 const targets = await (await fetch(`http://127.0.0.1:${process.env.CDP_PORT || 9333}/json`)).json();
-const page = targets.find((t) => t.type === 'page');
+const match = process.env.CDP_MATCH; // 예: CDP_MATCH=localhost:5051 → 주소에 이 글이 든 탭
+const page = (match && targets.find((t) => t.type === 'page' && t.url.includes(match))) || targets.find((t) => t.type === 'page' && /tauri.localhost|127.0.0.1:14/.test(t.url)) || targets.find((t) => t.type === 'page');
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener('open', r, { once: true }));
 let n = 0;
