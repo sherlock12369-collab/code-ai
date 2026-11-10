@@ -230,11 +230,30 @@
     if (buf.trim()) line(buf.trim());
   }
 
+  // ───────── 메시지 모양 바꾸기 ─────────
+  // 공통 모양: { role: 'user'|'assistant', content: '글', images?: [{ mime: 'image/jpeg', data: '<base64>' }] }
+  const geminiContents = (messages) => messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [
+      ...(m.images || []).map((img) => ({ inline_data: { mime_type: img.mime, data: img.data } })),
+      ...(m.content ? [{ text: m.content }] : [])
+    ]
+  }));
+  const claudeMessages = (messages) => messages.map((m) => (m.images && m.images.length
+    ? {
+      role: m.role,
+      content: [
+        ...m.images.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.data } })),
+        ...(m.content ? [{ type: 'text', text: m.content }] : [])
+      ]
+    }
+    : { role: m.role, content: m.content }));
+
   // ───────── Gemini ─────────
   async function streamGeminiOnce({ fetch, key, model, system, messages, signal, onText }) {
     const body = {
       systemInstruction: { parts: [{ text: system }] },
-      contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+      contents: geminiContents(messages),
       generationConfig: { maxOutputTokens: 65536 }
     };
     const res = await fetch(`${GEMINI_BASE}/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
@@ -265,7 +284,7 @@
 
   // ───────── Claude ─────────
   async function streamClaudeOnce({ fetch, key, model, system, messages, signal, onText, onRestart }) {
-    const body = { model, max_tokens: 64000, system, messages, stream: true, output_config: { effort: 'high' } };
+    const body = { model, max_tokens: 64000, system, messages: claudeMessages(messages), stream: true, output_config: { effort: 'high' } };
     const headers = {
       'Content-Type': 'application/json',
       'x-api-key': key,
@@ -299,12 +318,21 @@
    * 서버가 바쁘면(5xx) 답이 나오기 전까지 1·2·4초 뒤 다시 해 보고, Gemini는 그래도 안 되면 Flash-Lite로 바꾼다.
    * 실패하면 { error, needsKey? }를 돌려준다. (예외를 던지지 않는다. 취소만 AbortError)
    */
-  async function chat({ fetch, key, model, messages, files, selection, signal, onText, onNotice, retryDelays = [1000, 2000, 4000], system }) {
-    const provider = providerOfKey(key);
-    model = modelFor(key, model);
+  async function chat({ fetch, key, model, messages, files, selection, signal, onText, onNotice, retryDelays, system }) {
     const built = buildMessages(messages, files, selection, system);
     if (!built.messages.length) return { error: '메시지가 비어 있습니다.' };
+    const r = await stream({ fetch, key, model, system: built.system, messages: built.messages, signal, onText, onNotice, retryDelays });
+    return r.error ? r : { ...r, files: parseFileBlocks(r.text) };
+  }
 
+  const BUSY_SKIP_MS = 10 * 60 * 1000;
+  const busyUntil = new Map(); // 모델 id → 이 시각까지 건너뜀
+
+  // 다시 시도 + Flash-Lite 전환을 포함한 스트리밍 한 번. Code AI와 SEUL Chat이 함께 쓴다.
+  async function stream({ fetch, key, model, system, messages, signal, onText, onNotice, retryDelays = [1000, 2000, 4000] }) {
+    const provider = providerOfKey(key);
+    model = modelFor(key, model);
+    const built = { system, messages };
     let full = '';
     const emit = (t) => { full += t; onText && onText(t); };
     const restart = () => {
@@ -313,21 +341,30 @@
     };
     const once = provider === 'gemini' ? streamGeminiOnce : streamClaudeOnce;
 
+    // Gemini: 고른 모델이 바쁘면(5xx) 다시 시도하지 않고 바로 Flash-Lite로 바꾼다. (바쁠 때 한 번에 ~4초씩 걸려서)
+    // 한 번 바빴던 모델은 BUSY_SKIP_MS 동안 건너뛴다. 마지막 모델(또는 Claude)만 retryDelays대로 다시 시도한다.
     const models = [model];
-    if (provider === 'gemini' && model !== GEMINI_BUSY_FALLBACK) models.push(GEMINI_BUSY_FALLBACK);
+    if (provider === 'gemini' && model !== GEMINI_BUSY_FALLBACK) {
+      models.push(GEMINI_BUSY_FALLBACK);
+      if ((busyUntil.get(model) || 0) > Date.now()) models.shift();
+    }
+    const BUSY_NOTICE = '(Gemini가 바빠서 Flash-Lite로 답합니다)\n\n';
+    // 이미 바쁜 걸 알고 처음부터 Flash-Lite로 갈 때는 매번 알리지 않는다 (처음 바꿀 때만 알림).
 
     let lastErr = null;
     for (let mi = 0; mi < models.length; mi++) {
       const m = models[mi];
-      if (mi > 0) onNotice && onNotice('(Gemini가 바빠서 Flash-Lite로 답합니다)\n\n');
-      for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+      const isLast = mi === models.length - 1;
+      if (mi > 0) onNotice && onNotice(BUSY_NOTICE);
+      const delays = isLast ? retryDelays : [];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
         try {
           const r = await once({ fetch, key, model: m, system: built.system, messages: built.messages, signal, onText: emit, onRestart: restart });
           if (r.refused || (r.refusedIfEmpty && !full)) {
             const who = provider === 'gemini' ? 'Gemini' : 'Claude';
             return { error: `${who}가 이 요청에는 답할 수 없다고 했습니다. 요청을 바꿔서 다시 시도해 보세요.` };
           }
-          return { text: full, files: parseFileBlocks(full), maxTokens: r.maxTokens, model: m };
+          return { text: full, maxTokens: r.maxTokens, model: m };
         } catch (err) {
           if (err && err.name === 'AbortError') throw err;
           lastErr = err;
@@ -336,11 +373,50 @@
             const message = errorMessage(provider, err);
             return { error: full ? '응답을 받는 중 연결이 끊어졌습니다: ' + message : message, needsKey: err instanceof AIError && err.status === 401 };
           }
-          if (attempt < retryDelays.length) await sleep(retryDelays[attempt], signal);
+          if (!isLast) {
+            busyUntil.set(m, Date.now() + BUSY_SKIP_MS);
+            break;
+          }
+          if (attempt < delays.length) await sleep(delays[attempt], signal);
         }
       }
     }
     return { error: errorMessage(provider, lastErr) };
+  }
+
+  // ───────── SEUL Chat ─────────
+  const SEUL_BASE = `당신은 SEUL AI의 대화 친구 "슬"입니다. 귀여운 파란 로봇 캐릭터예요.
+- 사용자가 쓴 언어로 답하세요. 한국어로 물으면 한국어로 답합니다.
+- 짧고 읽기 쉽게 답하세요. 필요할 때만 목록이나 표를 쓰세요. (Markdown 사용 가능)
+- 모르는 것은 모른다고 말하고, 지어내지 마세요.
+- 사진이 첨부되면 사진을 보고 답하세요.
+- 사용자가 웹사이트, 게임, 앱처럼 "만들기"를 원하면, 화면 아래의 "Code AI로 만들기" 버튼으로 실제로 만들 수 있다고 알려 주세요.`;
+
+  const PERSONAS = [
+    { id: 'friend', name: '친구', emoji: '😊', desc: '편하게 반말로 수다 떠는 친구',
+      prompt: '성격: 다정하고 장난기 있는 친구. 반말로 편하게 말하고, 공감을 잘 해 줍니다. 이모지는 가끔만 씁니다.' },
+    { id: 'teacher', name: '선생님', emoji: '📚', desc: '차근차근 쉽게 설명해 주는 선생님',
+      prompt: '성격: 친절한 선생님. 존댓말을 쓰고, 어려운 내용은 쉬운 예시를 들어 단계별로 설명합니다. 마지막에 이해했는지 확인하는 짧은 질문을 하나 할 수 있습니다.' },
+    { id: 'english', name: '영어 회화', emoji: '🗣️', desc: '영어로 대화하며 틀린 곳을 고쳐 주는 선생님',
+      prompt: '역할: 영어 회화 선생님. 기본적으로 쉬운 영어로 대화를 이어 갑니다. 사용자의 영어에 틀린 곳이 있으면 답변 끝에 "✏️ 고친 문장:" 으로 자연스러운 표현을 알려 주고, 짧게 한국어로 이유를 설명합니다. 사용자가 한국어로 쓰면 그 말을 영어로 어떻게 하는지 알려 주고 영어로 대화를 이어 갑니다.' },
+    { id: 'assistant', name: '똑똑한 비서', emoji: '🗂️', desc: '핵심만 정리해 주는 비서',
+      prompt: '성격: 유능한 비서. 존댓말을 쓰고, 결론부터 말한 다음 필요한 만큼만 근거를 덧붙입니다. 할 일이나 계획은 목록으로 정리합니다.' }
+  ];
+  const personaOf = (id) => PERSONAS.find((p) => p.id === id) || PERSONAS[0];
+
+  /** SEUL Chat 대화 한 번. messages는 [{ role, content, images? }]. 결과: { text } 또는 { error } */
+  async function talk({ fetch, key, model, persona, messages, signal, onText, onNotice, retryDelays }) {
+    const history = (messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && (m.content || (m.images && m.images.length)));
+    while (history.length && history[0].role !== 'user') history.shift();
+    if (!history.length || history[history.length - 1].role !== 'user') return { error: '메시지가 비어 있습니다.' };
+    const system = `${SEUL_BASE}\n${personaOf(persona).prompt}`;
+    return stream({ fetch, key, model, system, messages: history, signal, onText, onNotice, retryDelays });
+  }
+
+  /** 첫 질문으로 대화 제목 만들기 (AI를 부르지 않고 앞부분을 자른다) */
+  function titleFrom(text) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim();
+    return t ? (t.length > 28 ? t.slice(0, 28) + '…' : t) : '사진 대화';
   }
 
   /** 키 확인 — 모델 정보 조회만 해서 요금·무료 한도를 쓰지 않는다. */
@@ -365,7 +441,9 @@
     SYSTEM_PROMPT, MODELS, DEFAULT_MODELS, KEY_CONSOLE_URLS,
     providerOfKey, providerOfModel, isModelId, modelFor, keyShapeError,
     safeRelativePath, parseFileBlocks, buildContext, buildMessages,
-    AIError, chat, checkKey
+    AIError, chat, stream, checkKey,
+    PERSONAS, personaOf, talk, titleFrom,
+    _resetBusy: () => busyUntil.clear()
   };
   root.CodeAIEngine = api;
   if (typeof module === 'object' && module.exports) module.exports = api;

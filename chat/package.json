@@ -1,0 +1,20 @@
+{
+  "name": "seul-chat",
+  "productName": "SEUL Chat",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "SEUL Chat — 귀여운 로봇 슬과 평소에 대화하는 앱",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.0",
+    "marked": "^18.1.1"
+  }
+}

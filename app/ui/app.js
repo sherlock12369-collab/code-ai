@@ -1435,6 +1435,22 @@
     }
   });
 
+  // ───────────────────────── SEUL Chat에서 넘어온 요청 ─────────────────────────
+  async function applyHandoff() {
+    let text = null;
+    try { text = await api.handoff.take(); } catch (_) { return; }
+    if (!text) return;
+    $('#chat-text').value = text;
+    autoGrow();
+    if (!state.project) {
+      toast('SEUL Chat에서 넘어온 요청이에요. 먼저 새 프로젝트를 만들어 주세요. 요청은 채팅 칸에 넣어 뒀어요.', '', 5000);
+      showNewProject();
+    } else {
+      toast('SEUL Chat에서 넘어온 요청을 채팅 칸에 넣었어요. 확인하고 보내 주세요.', '', 4000);
+      $('#chat-text').focus();
+    }
+  }
+
   // ───────────────────────── 시작 ─────────────────────────
   async function init() {
     state.settings = await api.settings.get();
@@ -1449,6 +1465,8 @@
     }
     await onProjectChanged(await api.project.current());
     window.__codeaiReady = true;
+    api.handoff.onArrive(applyHandoff);
+    applyHandoff();
     checkServer();
     checkUpdates();
     api.updates.state().then((st) => { if (st && st.status === 'ready' && st.version) showUpdateReady(st.version); }).catch(() => {});

@@ -32,6 +32,8 @@ pub struct AppState {
     preview: preview::PreviewServer,
     sites_dir: PathBuf,
     templates_dir: PathBuf,
+    /// SEUL Chat에서 codeai:// 링크로 넘어온, 아직 화면이 가져가지 않은 요청
+    handoff: Mutex<Option<String>>,
 }
 
 fn err<E: std::fmt::Display>(e: E) -> String {
@@ -449,6 +451,31 @@ fn deploy_local(state: State<AppState>, name: String, files: Vec<DeployFile>) ->
     Ok(format!("{}/sites/{}/", state.preview.base(), id))
 }
 
+// ───────── SEUL Chat에서 넘어온 요청 (codeai://new?text=...) ─────────
+
+fn handle_urls(app: &AppHandle, urls: &[tauri::Url]) {
+    for url in urls {
+        if url.scheme() != "codeai" {
+            continue;
+        }
+        if let Some((_, text)) = url.query_pairs().find(|(k, _)| k == "text") {
+            let text: String = text.chars().take(4000).collect();
+            *app.state::<AppState>().handoff.lock().unwrap() = Some(text);
+            let _ = app.emit("handoff", ());
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }
+    }
+}
+
+/// 화면이 넘어온 요청을 가져간다 (한 번만).
+#[tauri::command]
+fn take_handoff(state: State<AppState>) -> Option<String> {
+    state.handoff.lock().unwrap().take()
+}
+
 // ───────── 메뉴 ─────────
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
@@ -522,6 +549,7 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
@@ -552,7 +580,20 @@ pub fn run() {
                 preview,
                 sites_dir,
                 templates_dir,
+                handoff: Mutex::new(None),
             });
+
+            // codeai:// 링크: 설치본은 설치할 때 등록되고, 개발 중에는 여기서 등록한다.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                #[cfg(all(desktop, debug_assertions))]
+                let _ = app.deep_link().register_all();
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    handle_urls(&handle, &urls);
+                }
+                let h = handle.clone();
+                app.deep_link().on_open_url(move |event| handle_urls(&h, &event.urls()));
+            }
             if let Some(p) = last {
                 let state = handle.state::<AppState>();
                 set_project(&handle, &state, Some(p));
@@ -589,6 +630,7 @@ pub fn run() {
             history_list,
             history_restore,
             deploy_local,
+            take_handoff,
         ])
         .run(tauri::generate_context!())
         .expect("Code AI를 시작하지 못했습니다");

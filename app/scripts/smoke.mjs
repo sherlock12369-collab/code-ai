@@ -25,5 +25,6 @@ const expr = process.argv[2] || `(async () => ({
   settings: await window.codeai.settings.get()
 }))()`;
 const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
-console.log(JSON.stringify(r.result?.result?.value ?? r.result, null, 2));
+if (r.result?.exceptionDetails) console.log("EXCEPTION", JSON.stringify(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails));
+else console.log(JSON.stringify(r.result?.result?.value ?? r.result, null, 2));
 ws.close();

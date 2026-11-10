@@ -1,6 +1,6 @@
-name: 2.0 앱 빌드 (Tauri)
+name: 2.0 앱 빌드 (Tauri: Code AI, SEUL Chat)
 
-# v2.0.0 같은 태그를 올리면 Tauri 앱(app/)의 Windows/macOS 설치 파일을 만들어 릴리스에 올린다.
+# v2.0.0 같은 태그를 올리면 Code AI(app/)와 SEUL Chat(chat/)의 Windows/macOS 설치 파일을 만들어 릴리스에 올린다.
 # (1.x Electron 앱은 release.yml이 v1.* 태그로 만든다)
 on:
   push:
@@ -20,13 +20,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            args: --bundles nsis
-            pattern: app/src-tauri/target/release/bundle/nsis/*.exe
+          - { dir: app, os: windows-latest, args: --bundles nsis, out: release/bundle/nsis/*.exe }
+          - { dir: chat, os: windows-latest, args: --bundles nsis, out: release/bundle/nsis/*.exe }
           # Intel + Apple Silicon 둘 다 되는 universal 빌드, ad-hoc 서명(tauri.conf.json의 signingIdentity "-")
-          - os: macos-latest
-            args: --target universal-apple-darwin --bundles dmg
-            pattern: app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - { dir: app, os: macos-latest, args: --target universal-apple-darwin --bundles dmg, out: universal-apple-darwin/release/bundle/dmg/*.dmg }
+          - { dir: chat, os: macos-latest, args: --target universal-apple-darwin --bundles dmg, out: universal-apple-darwin/release/bundle/dmg/*.dmg }
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ github.token }}
@@ -41,17 +39,17 @@ jobs:
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: ${{ matrix.dir }}/src-tauri
       - run: npm ci
-        working-directory: app
+        working-directory: ${{ matrix.dir }}
       - run: npx tauri build ${{ matrix.args }}
-        working-directory: app
+        working-directory: ${{ matrix.dir }}
       - name: 릴리스에 업로드
         shell: bash
         run: |
           pre=""; [[ "$TAG" == *-* ]] && pre="--prerelease"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Code AI ${TAG#v}" --notes "Code AI ${TAG#v}" $pre
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "SEUL AI ${TAG#v}" --notes "Code AI · SEUL Chat ${TAG#v}" $pre
           shopt -s nullglob
-          files=(${{ matrix.pattern }})
+          files=(${{ matrix.dir }}/src-tauri/target/${{ matrix.out }})
           echo "업로드: ${files[*]}"
           gh release upload "$TAG" "${files[@]}" --clobber

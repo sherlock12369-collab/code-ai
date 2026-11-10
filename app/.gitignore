@@ -2,3 +2,4 @@ node_modules/
 ui/vendor/
 src-tauri/target/
 src-tauri/gen/
+ui/ai.js

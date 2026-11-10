@@ -1,0 +1,155 @@
+/* SEUL Chat — base.css 토큰(--bg, --fg, --line …) 위에 로봇 파란색을 더한다.
+   레이아웃: 왼쪽 대화 목록 + 가운데 대화. 좁은 화면(폰 세로)에서는 목록이 서랍처럼 열린다. */
+:root {
+  --seul: #4f9cf9;
+  --seul-dark: #2f74d0;
+  --seul-soft: rgba(79, 156, 249, 0.12);
+  --seul-face: #eaf4ff;
+  --seul-eye: #1d2a3a;
+  --seul-blush: #ff9fb0;
+  --seul-spark: #ffc94a;
+  --seul-user: #4f9cf9;
+  --seul-user-fg: #ffffff;
+}
+html[data-theme="dark"] {
+  --seul-soft: rgba(79, 156, 249, 0.18);
+  --seul-face: #dcecff;
+  --seul-user: #2f74d0;
+}
+
+/* ───────── 레이아웃 ───────── */
+.seul { flex: 1; min-height: 0; display: grid; grid-template-columns: 272px minmax(0, 1fr); background: var(--bg); position: relative; }
+.seul-side { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); background: var(--bg-2); }
+.seul-side-head { display: grid; gap: 8px; padding: 12px; }
+.seul-new { display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; border: 0; border-radius: 10px; background: var(--seul); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.seul-new:hover { background: var(--seul-dark); }
+.seul-new svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.seul-search { position: relative; }
+.seul-search input { width: 100%; height: 34px; padding: 0 10px 0 32px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
+.seul-search input:focus { outline: 2px solid var(--seul-soft); border-color: var(--seul); }
+.seul-search svg { position: absolute; left: 10px; top: 9px; width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 2; }
+.seul-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.seul-list-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; padding: 10px 8px 4px; }
+.seul-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 8px; border-radius: 9px; cursor: pointer; border: 0; background: none; text-align: left; color: var(--fg); font: inherit; width: 100%; }
+.seul-item:hover { background: var(--bg-3); }
+.seul-item.active { background: var(--seul-soft); }
+.seul-item .p-emoji { font-size: 15px; line-height: 20px; text-align: center; }
+.seul-item .t { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seul-item .s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.seul-item .s mark { background: var(--seul-soft); color: var(--fg); border-radius: 3px; padding: 0 1px; }
+.seul-item .del { opacity: 0; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 6px; }
+.seul-item:hover .del, .seul-item:focus-within .del { opacity: 1; }
+.seul-item .del:hover { color: var(--danger); background: var(--bg); }
+.seul-item .del svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; display: block; }
+.seul-list-empty { padding: 24px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+
+.seul-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.seul-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
+.seul-head .seul-menu { display: none; }
+.seul-title { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.personas { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.personas::-webkit-scrollbar { display: none; }
+.persona { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--fg-2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.persona:hover { border-color: var(--seul); }
+.persona.active { background: var(--seul); border-color: var(--seul); color: #fff; }
+
+/* ───────── 대화 ───────── */
+.seul-log { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 20px 12px; }
+.seul-col { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.s-msg { display: flex; gap: 10px; align-items: flex-start; }
+.s-msg.user { justify-content: flex-end; }
+.s-avatar { width: 34px; height: 34px; flex: none; margin-top: 2px; }
+.s-body { min-width: 0; max-width: min(640px, 100%); display: flex; flex-direction: column; gap: 6px; }
+.s-msg.user .s-body { align-items: flex-end; max-width: min(560px, 85%); }
+.s-bubble { line-height: 1.7; font-size: 14.5px; overflow-wrap: anywhere; }
+.s-msg.user .s-bubble { background: var(--seul-user); color: var(--seul-user-fg); padding: 9px 14px; border-radius: 18px 18px 4px 18px; white-space: pre-wrap; }
+.s-msg.ai .s-bubble { color: var(--fg); padding-top: 5px; }
+.s-msg.ai.error .s-bubble { color: var(--danger); }
+.s-bubble > :first-child { margin-top: 0; }
+.s-bubble > :last-child { margin-bottom: 0; }
+.s-bubble p { margin: 0 0 .7em; }
+.s-bubble ul, .s-bubble ol { margin: 0 0 .7em; padding-left: 1.4em; }
+.s-bubble h1, .s-bubble h2, .s-bubble h3 { font-size: 1.05em; margin: 1em 0 .4em; }
+.s-bubble code { font-family: var(--mono); font-size: .88em; background: var(--bg-3); padding: .1em .35em; border-radius: 5px; }
+.s-bubble pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; }
+.s-bubble pre code { background: none; padding: 0; }
+.s-bubble table { border-collapse: collapse; display: block; overflow-x: auto; margin: 0 0 .7em; }
+.s-bubble th, .s-bubble td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.s-bubble th { background: var(--bg-2); }
+.s-bubble a { color: var(--seul-dark); }
+html[data-theme="dark"] .s-bubble a { color: var(--seul); }
+.s-bubble blockquote { margin: 0 0 .7em; padding: 4px 12px; border-left: 3px solid var(--seul); color: var(--fg-2); }
+.s-images { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.s-images img { width: 132px; height: 132px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); cursor: zoom-in; }
+.s-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.s-act { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.s-act:hover { background: var(--bg-2); color: var(--fg); border-color: var(--line); }
+.s-act.handoff { color: var(--accent); }
+.s-act.handoff:hover { background: var(--accent-soft); border-color: transparent; }
+.s-act svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.s-dots { display: inline-flex; gap: 4px; padding: 10px 0; }
+.s-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--seul); animation: sdot 1.2s infinite; }
+.s-dots i:nth-child(2) { animation-delay: .15s; }
+.s-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes sdot { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* 처음 화면 */
+.seul-hello { max-width: 560px; margin: 6vh auto 0; text-align: center; display: grid; justify-items: center; gap: 10px; }
+.seul-hello svg { width: 132px; height: 132px; }
+.seul-hello h2 { margin: 6px 0 0; font-size: 22px; letter-spacing: -.01em; }
+.seul-hello p { margin: 0; color: var(--muted); }
+.seul-sugg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; margin-top: 14px; }
+.seul-sugg button { text-align: left; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--fg-2); font: inherit; font-size: 13px; cursor: pointer; line-height: 1.45; }
+.seul-sugg button:hover { border-color: var(--seul); color: var(--fg); background: var(--seul-soft); }
+
+/* ───────── 입력 ───────── */
+.seul-composer { flex: none; padding: 8px 20px 18px; }
+.seul-box { max-width: 760px; margin: 0 auto; border: 1px solid var(--line-2); border-radius: 18px; background: var(--bg); padding: 8px; display: grid; gap: 6px; box-shadow: 0 4px 20px rgba(0, 0, 0, .05); }
+.seul-box:focus-within { border-color: var(--seul); }
+.seul-box.drag { border-color: var(--seul); background: var(--seul-soft); }
+.seul-attached { display: flex; flex-wrap: wrap; gap: 6px; }
+.seul-attached:empty { display: none; }
+.seul-thumb { position: relative; }
+.seul-thumb img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--line); }
+.seul-thumb button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--fg); color: var(--bg); cursor: pointer; font-size: 13px; line-height: 20px; padding: 0; }
+.seul-row { display: flex; align-items: flex-end; gap: 6px; }
+.seul-row textarea { flex: 1; resize: none; border: 0; outline: 0; background: none; color: var(--fg); font: inherit; font-size: 14.5px; line-height: 1.55; padding: 7px 6px; max-height: 200px; min-height: 38px; }
+.seul-icon { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 11px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.seul-icon:hover { background: var(--bg-3); color: var(--fg); }
+.seul-icon svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.seul-send { background: var(--seul); color: #fff; }
+.seul-send:hover { background: var(--seul-dark); color: #fff; }
+.seul-send:disabled { background: var(--bg-3); color: var(--muted); cursor: default; }
+.seul-hint { max-width: 760px; margin: 6px auto 0; text-align: center; font-size: 11.5px; color: var(--muted); }
+
+/* 사진 크게 보기 */
+.seul-lightbox { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .8); display: grid; place-items: center; padding: 24px; cursor: zoom-out; }
+.seul-lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+
+/* ───────── 로봇 ───────── */
+.robot .blink { animation: rblink 4s infinite; transform-origin: center; transform-box: fill-box; }
+.robot.thinking .antenna { animation: rglow .8s ease-in-out infinite; }
+.robot .wave { animation: rwave 2.4s ease-in-out infinite; transform-origin: 20% 90%; transform-box: fill-box; }
+@keyframes rblink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes rglow { 50% { fill: #fff3c4; filter: drop-shadow(0 0 6px #ffc94a); } }
+@keyframes rwave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .robot .blink, .robot.thinking .antenna, .robot .wave, .s-dots i { animation: none; }
+}
+
+/* ───────── 좁은 화면 (폰 세로) ───────── */
+@media (max-width: 760px) {
+  .seul { grid-template-columns: minmax(0, 1fr); }
+  .seul-side { position: absolute; inset: 0 auto 0 0; width: min(300px, 86vw); z-index: 20; transform: translateX(-102%); transition: transform .2s; }
+  .seul.side-open .seul-side { box-shadow: var(--shadow); }
+  .seul-hint { display: none; }
+  .seul.side-open .seul-side { transform: none; }
+  .seul.side-open::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .3); z-index: 10; }
+  .seul-head .seul-menu { display: grid; }
+  .seul-head { padding: 0 8px; flex-wrap: nowrap; }
+  .seul-head .personas { max-width: 55vw; }
+  .seul-log { padding: 16px 12px 8px; }
+  .seul-composer { padding: 6px 10px 12px; }
+  .seul-sugg { grid-template-columns: minmax(0, 1fr); }
+  .s-images img { width: 104px; height: 104px; }
+}

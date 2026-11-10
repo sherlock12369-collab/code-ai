@@ -1,9 +1,12 @@
-// 빌드 전에 Monaco 편집기 파일을 ui/vendor/monaco 로 복사한다. (이미 있으면 건너뛴다)
+// 빌드 전에 화면(ui/)에 필요한 파일을 채운다. (git에는 올리지 않는 복사본)
+// - Monaco 편집기: node_modules → ui/vendor/monaco
+// - AI 연결 코드: ../shared/ai.js → ui/ai.js (SEUL Chat과 함께 쓴다)
 import { cpSync, existsSync } from 'node:fs';
-const src = new URL('../node_modules/monaco-editor/min/vs', import.meta.url);
-const dest = new URL('../ui/vendor/monaco/vs', import.meta.url);
-if (!existsSync(new URL('loader.js', dest + '/'))) {
-  if (!existsSync(src)) throw new Error('monaco-editor가 없습니다. app 폴더에서 npm install 을 먼저 실행하세요.');
-  cpSync(src, dest, { recursive: true });
+const here = (p) => new URL(`../${p}`, import.meta.url);
+
+if (!existsSync(here('ui/vendor/monaco/vs/loader.js'))) {
+  if (!existsSync(here('node_modules/monaco-editor/min/vs'))) throw new Error('monaco-editor가 없습니다. app 폴더에서 npm install 을 먼저 실행하세요.');
+  cpSync(here('node_modules/monaco-editor/min/vs'), here('ui/vendor/monaco/vs'), { recursive: true });
   console.log('Monaco 복사 완료');
 }
+cpSync(here('../shared/ai.js'), here('ui/ai.js'));

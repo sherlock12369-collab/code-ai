@@ -1,0 +1,5 @@
+node_modules/
+ui/vendor/
+ui/ai.js
+src-tauri/target/
+src-tauri/gen/

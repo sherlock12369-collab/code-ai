@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SEUL Chat</title>
+  <link rel="stylesheet" href="seul.css">
+  <link rel="stylesheet" href="base.css">
+</head>
+<body>
+  <section id="seul" class="seul" aria-label="SEUL Chat">
+    <aside class="seul-side">
+      <div class="seul-side-head">
+        <div class="brand" id="brand"></div>
+        <button class="seul-new" id="seul-new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>새 대화</button>
+        <label class="seul-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="seul-search" type="search" placeholder="대화 검색" autocomplete="off"></label>
+      </div>
+      <div class="seul-list" id="seul-list"></div>
+      <div class="side-foot">
+        <button class="side-btn" id="btn-settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>설정</button>
+        <button class="side-btn" id="btn-theme" style="flex:none" title="테마 전환"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </div>
+    </aside>
+    <div class="seul-main">
+      <div class="seul-head">
+        <button class="seul-icon seul-menu" id="seul-menu" title="대화 목록"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <div class="seul-title" id="seul-title">새 대화</div>
+        <div class="personas" id="seul-personas" role="radiogroup" aria-label="성격"></div>
+      </div>
+      <div class="seul-log" id="seul-log"><div class="seul-col" id="seul-col"></div></div>
+      <div class="seul-composer">
+        <div class="seul-box" id="seul-box">
+          <div class="seul-attached" id="seul-attached"></div>
+          <div class="seul-row">
+            <button class="seul-icon" id="seul-attach" title="사진 넣기"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg></button>
+            <input type="file" id="seul-file" accept="image/*" multiple hidden>
+            <textarea id="seul-text" rows="1" placeholder="슬에게 무엇이든 물어보세요"></textarea>
+            <button class="seul-icon seul-send" id="seul-send" title="보내기 (Enter)"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+          </div>
+        </div>
+        <div class="seul-hint">사진은 붙여넣기(Ctrl+V)나 끌어다 놓기로도 넣을 수 있어요 · AI는 틀릴 수 있어요</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 설정 -->
+  <div class="modal" id="modal-settings" hidden>
+    <div class="modal-card" role="dialog" aria-labelledby="settings-title">
+      <div class="modal-head"><h2 id="settings-title">설정</h2><button class="icon-x" data-close title="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="modal-body">
+        <div class="field"><span>테마</span>
+          <div class="seg" id="set-theme"><button data-value="system">시스템</button><button data-value="light">라이트</button><button data-value="dark">다크</button></div>
+        </div>
+        <div class="field"><span>API 키 (Gemini 무료 / Claude)</span>
+          <small id="key-status"></small>
+          <div class="row"><input id="key-input" type="password" spellcheck="false" autocomplete="off" placeholder="AQ.… / AIza… 또는 sk-ant-…"><button class="btn primary" id="key-save">확인 후 저장</button></div>
+          <small id="key-result"></small>
+          <small>Code AI와 같은 키를 같이 써요. 한쪽에 넣으면 둘 다 돼요. 키는 이 컴퓨터의 보안 저장소에만 저장돼요. <a href="#" id="key-get">무료 Gemini 키 받기</a> · <a href="#" id="key-clear">키 지우기</a></small>
+        </div>
+        <div class="field"><span>AI 모델</span>
+          <div class="models" id="set-models"></div>
+        </div>
+        <small class="muted" id="set-version" style="color:var(--muted)"></small>
+      </div>
+    </div>
+  </div>
+
+  <!-- 처음: 키 넣기 -->
+  <div class="modal" id="modal-welcome" hidden>
+    <div class="modal-card" role="dialog" aria-labelledby="welcome-title">
+      <div class="modal-body">
+        <div class="welcome" id="welcome-robot"></div>
+        <div class="welcome">
+          <h2 id="welcome-title">안녕! 나는 슬이야</h2>
+          <p>대화하려면 AI 키가 하나 필요해요. 무료예요.</p>
+        </div>
+        <ol class="steps">
+          <li><a href="#" id="welcome-get">Google AI Studio</a>에서 구글 계정으로 키를 받아요 (카드 필요 없어요)</li>
+          <li>키를 복사해서 아래에 붙여 넣어요</li>
+        </ol>
+        <div class="field">
+          <div class="row"><input id="welcome-key" type="password" spellcheck="false" autocomplete="off" placeholder="AQ.… 또는 AIza…"><button class="btn primary" id="welcome-save">시작하기</button></div>
+          <small id="welcome-result"></small>
+        </div>
+        <button class="btn" id="welcome-later" style="justify-self:center;border:0;color:var(--muted)">나중에 할게요</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="vendor/marked.umd.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="ai.js"></script>
+  <script src="seul.js"></script>
+</body>
+</html>

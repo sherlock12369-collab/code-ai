@@ -242,6 +242,11 @@
       showItem: async (rel) => T.opener.revealItemInDir(await invoke('reveal_path', { rel: rel || null }))
     },
     clipboard: { write: (text) => T.clipboardManager.writeText(String(text)) },
+    // SEUL Chat에서 'Code AI로 만들기'로 넘어온 요청 (codeai:// 링크)
+    handoff: {
+      take: () => invoke('take_handoff'),
+      onArrive: (cb) => listen('handoff', cb)
+    },
     onMenu: (cb) => listen('menu', (name) => (ZOOM[name] ? ZOOM[name]() : cb(name))),
     onThemeUpdated: (cb) => {
       const mq = window.matchMedia('(prefers-color-scheme: dark)');
