@@ -1,6 +1,7 @@
 // SEUL Chat (Tauri) — 앱 안쪽 부분
 // 대화 저장·검색(chats.rs), 설정, API 키를 맡는다. AI 호출은 화면 쪽 ui/ai.js(shared/ai.js 복사본)가 한다.
-// API 키는 Code AI와 같은 OS 보안 저장소 항목을 같이 써서, 한쪽에 넣으면 둘 다 쓸 수 있다.
+// API 키: 컴퓨터에서는 Code AI와 같은 OS 보안 저장소 항목을 같이 써서, 한쪽에 넣으면 둘 다 쓸 수 있다.
+// 폰(안드로이드)에는 그런 저장소가 없어서, 다른 앱이 읽을 수 없는 이 앱 전용 폴더의 파일에 둔다.
 
 mod chats;
 
@@ -12,30 +13,68 @@ use tauri::{AppHandle, Manager, State};
 
 type CmdResult<T> = Result<T, String>;
 
-// Code AI(app/src-tauri/src/settings.rs)와 같은 값이어야 키를 같이 쓴다.
-const KEYRING_SERVICE: &str = "ai.seul.codeai";
-const KEYRING_USER: &str = "api-key";
-
 struct AppState {
     settings: Mutex<Value>,
     settings_path: PathBuf,
     chats_dir: PathBuf,
+    #[allow(dead_code)] // 폰에서만 씀
+    key_file: PathBuf,
 }
 
 fn default_settings() -> Value {
     json!({ "theme": "system", "model": null, "persona": "friend" })
 }
 
-fn key_entry() -> Option<keyring::Entry> {
-    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).ok()
+// ───────── 키 저장 ─────────
+
+#[cfg(desktop)]
+mod keystore {
+    use std::path::Path;
+    // Code AI(app/src-tauri/src/settings.rs)와 같은 값이어야 키를 같이 쓴다.
+    const KEYRING_SERVICE: &str = "ai.seul.codeai";
+    const KEYRING_USER: &str = "api-key";
+    fn entry() -> Option<keyring::Entry> {
+        keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).ok()
+    }
+    pub fn get(_file: &Path) -> Option<String> {
+        entry().and_then(|e| e.get_password().ok()).filter(|k| !k.is_empty())
+    }
+    pub fn set(_file: &Path, key: Option<&str>) -> Result<(), String> {
+        let e = entry().ok_or("이 컴퓨터의 보안 저장소를 쓸 수 없습니다.")?;
+        match key {
+            Some(k) => e.set_password(k).map_err(|err| format!("키를 저장하지 못했습니다: {err}")),
+            None => {
+                let _ = e.delete_credential();
+                Ok(())
+            }
+        }
+    }
 }
 
-fn get_key() -> Option<String> {
-    key_entry().and_then(|e| e.get_password().ok()).filter(|k| !k.is_empty())
+#[cfg(mobile)]
+mod keystore {
+    use std::path::Path;
+    pub fn get(file: &Path) -> Option<String> {
+        std::fs::read_to_string(file).ok().map(|k| k.trim().to_string()).filter(|k| !k.is_empty())
+    }
+    pub fn set(file: &Path, key: Option<&str>) -> Result<(), String> {
+        match key {
+            Some(k) => {
+                if let Some(d) = file.parent() {
+                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(file, k).map_err(|e| format!("키를 저장하지 못했습니다: {e}"))
+            }
+            None => {
+                let _ = std::fs::remove_file(file);
+                Ok(())
+            }
+        }
+    }
 }
 
-fn public_settings(app: &AppHandle, s: &Value) -> Value {
-    let key = get_key();
+fn public_settings(app: &AppHandle, state: &AppState, s: &Value) -> Value {
+    let key = keystore::get(&state.key_file);
     let mut v = s.clone();
     v["hasApiKey"] = json!(key.is_some());
     v["keyProvider"] = json!(key.as_deref().map(|k| if k.starts_with("sk-ant-") { "claude" } else { "gemini" }));
@@ -49,7 +88,7 @@ fn public_settings(app: &AppHandle, s: &Value) -> Value {
 
 #[tauri::command]
 fn settings_get(app: AppHandle, state: State<AppState>) -> Value {
-    public_settings(&app, &state.settings.lock().unwrap())
+    public_settings(&app, &state, &state.settings.lock().unwrap())
 }
 
 /// theme, model, persona 만 바꿀 수 있다.
@@ -72,26 +111,21 @@ fn settings_set(app: AppHandle, state: State<AppState>, partial: Value) -> Value
         let _ = fs::create_dir_all(dir);
     }
     let _ = fs::write(&state.settings_path, serde_json::to_string_pretty(&*s).unwrap_or_default());
-    public_settings(&app, &s)
+    public_settings(&app, &state, &s)
 }
 
 /// 화면의 ai.js가 API를 직접 부르므로 키 원문을 준다.
 #[tauri::command]
-fn api_key_get() -> Option<String> {
-    get_key()
+fn api_key_get(state: State<AppState>) -> Option<String> {
+    keystore::get(&state.key_file)
 }
 
 /// 키 저장(None이면 삭제). 확인은 화면 쪽에서 먼저 한다.
 #[tauri::command]
 fn api_key_store(app: AppHandle, state: State<AppState>, key: Option<String>) -> CmdResult<Value> {
-    let entry = key_entry().ok_or("이 컴퓨터의 보안 저장소를 쓸 수 없습니다.")?;
-    match key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()) {
-        Some(k) => entry.set_password(&k).map_err(|e| format!("키를 저장하지 못했습니다: {e}"))?,
-        None => {
-            let _ = entry.delete_credential();
-        }
-    }
-    Ok(public_settings(&app, &state.settings.lock().unwrap()))
+    let key = key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+    keystore::set(&state.key_file, key.as_deref())?;
+    Ok(public_settings(&app, &state, &state.settings.lock().unwrap()))
 }
 
 #[tauri::command]
@@ -121,13 +155,15 @@ fn chats_search(state: State<AppState>, query: String) -> Vec<Value> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.set_focus();
-            }
-        }))
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+        }
+    }));
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
@@ -145,6 +181,7 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 settings_path,
                 chats_dir: paths.app_data_dir()?.join("chats"),
+                key_file: paths.app_data_dir()?.join("api-key"),
             });
             Ok(())
         })

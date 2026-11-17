@@ -7,6 +7,8 @@
   const copyText = (t) => T.clipboardManager.writeText(String(t));
   const openUrl = (u) => T.opener.openUrl(String(u));
   const invoke = T.core.invoke;
+  // 폰(안드로이드)에서는 Code AI가 없고 키도 이 앱 안에만 저장된다.
+  const MOBILE = /Android|iPhone|iPad/i.test(navigator.userAgent);
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -198,7 +200,7 @@
     const actions = streaming ? '' : `<div class="s-actions">
       ${m.error ? '' : `<button class="s-act" data-copy="${idx}">${ICON.copy}복사</button>`}
       ${idx === state.chat.messages.length - 1 ? `<button class="s-act" data-retry>${ICON.retry}다시 답하기</button>` : ''}
-      ${m.error ? (m.needsKey ? '<button class="s-act" data-key>API 키 입력</button>' : '') : `<button class="s-act handoff" data-handoff="${idx}" title="이 대화 내용으로 Code AI에서 진짜로 만들어요">${ICON.code}Code AI로 만들기</button>`}
+      ${m.error ? (m.needsKey ? '<button class="s-act" data-key>API 키 입력</button>' : '') : MOBILE ? '' : `<button class="s-act handoff" data-handoff="${idx}" title="이 대화 내용으로 Code AI에서 진짜로 만들어요">${ICON.code}Code AI로 만들기</button>`}
     </div>`;
     return `<div class="s-msg ai${m.error ? ' error' : ''}" data-idx="${idx}">
       <div class="s-avatar">${robot({ thinking: streaming })}</div>
@@ -574,11 +576,12 @@
       renderSettings();
     }
   };
+  if (MOBILE) $('#key-note').textContent = '키는 이 폰의 SEUL Chat 앱 안에만 저장돼요. ';
   $('#key-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#key-save').click(); });
   $('#key-get').onclick = (e) => { e.preventDefault(); openUrl(KEY_URL); };
   $('#key-clear').onclick = async (e) => {
     e.preventDefault();
-    const ok = await T.dialog.ask('저장된 API 키를 지울까요? Code AI에서도 같이 지워져요.', { title: '키 지우기', kind: 'warning', okLabel: '지우기', cancelLabel: '취소' });
+    const ok = await T.dialog.ask(MOBILE ? '저장된 API 키를 지울까요?' : '저장된 API 키를 지울까요? Code AI에서도 같이 지워져요.', { title: '키 지우기', kind: 'warning', okLabel: '지우기', cancelLabel: '취소' });
     if (!ok) return;
     state.settings = await invoke('api_key_store', { key: null });
     renderSettings();
