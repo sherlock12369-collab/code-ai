@@ -76,8 +76,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager "ndk;27.1.12297006"
+      # 빌드 서버(ubuntu-latest)에는 안드로이드 SDK가 이미 깔려 있다.
+      # (setup-android@v3는 없어진 'tools' 패키지를 깔려다 실패해서 뺐다)
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.1.12297006" > /dev/null
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
