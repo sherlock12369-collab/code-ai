@@ -561,7 +561,10 @@
       `<label class="model"><input type="radio" name="model" value="${m.id}" ${m.id === current ? 'checked' : ''}><span>${esc(m.label)}</span><span class="price">${esc(m.price)}</span></label>`).join('');
     document.querySelectorAll('#set-models input').forEach((r) => { r.onchange = () => setSetting({ model: r.value }); });
     $('#set-version').textContent = 'SEUL Chat ' + (s.version || '');
+    $('#set-usage-field').style.display = provider === 'gemini' ? '' : 'none';
+    $('#set-usage').textContent = AI.usageText();
   }
+  window.addEventListener('seulai-usage', () => { $('#set-usage').textContent = AI.usageText(); });
 
   function openSettings() {
     $('#key-input').value = '';

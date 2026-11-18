@@ -249,8 +249,40 @@
     }
     : { role: m.role, content: m.content }));
 
+  // ───────── 오늘 Gemini 사용량 (이 앱이 보낸 요청 수, 대략값) ─────────
+  // Gemini 무료 한도는 미국 태평양 시간 자정에 초기화되므로 그 날짜로 센다.
+  const USAGE_STORE = 'seulai.usage';
+  const pacificDay = (now = Date.now()) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(now);
+  let usageMem = { day: '', byModel: {} };
+  function loadUsage() {
+    try { usageMem = JSON.parse(root.localStorage.getItem(USAGE_STORE)) || usageMem; } catch (_) { /* 저장소 없음 */ }
+    if (!usageMem || usageMem.day !== pacificDay() || typeof usageMem.byModel !== 'object') usageMem = { day: pacificDay(), byModel: {} };
+    return usageMem;
+  }
+  /** { day, total, byModel: { 모델 id: 요청 수 } } */
+  function usageToday() {
+    const u = loadUsage();
+    const total = Object.values(u.byModel).reduce((a, b) => a + (Number(b) || 0), 0);
+    return { day: u.day, total, byModel: { ...u.byModel } };
+  }
+  function countUsage(model) {
+    const u = loadUsage();
+    u.byModel[model] = (u.byModel[model] || 0) + 1;
+    try { root.localStorage.setItem(USAGE_STORE, JSON.stringify(u)); } catch (_) { /* 무시 */ }
+    try { root.dispatchEvent(new CustomEvent('seulai-usage', { detail: usageToday() })); } catch (_) { /* 화면 없음 */ }
+  }
+  /** 사용량을 사람이 읽는 한 줄로: "오늘 Gemini 요청 12번 (Flash 10 · Flash-Lite 2)" */
+  function usageText(u = usageToday()) {
+    if (!u.total) return '오늘 Gemini 요청 0번';
+    const short = (id) => (id === GEMINI_BUSY_FALLBACK ? 'Flash-Lite' : id === DEFAULT_MODELS.gemini ? 'Flash' : id);
+    const parts = Object.entries(u.byModel).filter(([, n]) => n > 0).map(([id, n]) => `${short(id)} ${n}`);
+    return `오늘 Gemini 요청 ${u.total}번` + (parts.length > 1 ? ` (${parts.join(' · ')})` : '');
+  }
+
   // ───────── Gemini ─────────
   async function streamGeminiOnce({ fetch, key, model, system, messages, signal, onText }) {
+    countUsage(model);
     const body = {
       systemInstruction: { parts: [{ text: system }] },
       contents: geminiContents(messages),
@@ -474,6 +506,7 @@
     safeRelativePath, parseFileBlocks, buildContext, buildMessages,
     AIError, chat, stream, checkKey,
     PERSONAS, personaOf, talk, titleFrom,
+    usageToday, usageText, pacificDay,
     _resetBusy: () => busyUntil.clear()
   };
   root.CodeAIEngine = api;

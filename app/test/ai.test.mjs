@@ -167,3 +167,14 @@ test('빈 대답이면 다시 답하기 안내', async () => {
   const r = await E.talk({ ...base, fetch });
   assert.match(r.error, /다시 답하기/);
 });
+
+test('Gemini 요청을 태평양 시간 날짜로 센다', async () => {
+  const before = E.usageToday().total;
+  const { fetch } = mockFetch([busy, () => sse([geminiText('라이트')])]);
+  await E.chat({ ...base, fetch });
+  const u = E.usageToday();
+  assert.equal(u.total, before + 2);
+  assert.equal(u.day, E.pacificDay());
+  assert.match(E.usageText(u), /오늘 Gemini 요청 \d+번 \(Flash \d+ · Flash-Lite \d+\)/);
+  assert.equal(E.pacificDay(Date.UTC(2026, 10, 18, 7, 59)), '2026-11-17'); // 한국 오후 4:59 = 미국 전날
+});

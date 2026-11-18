@@ -1038,6 +1038,7 @@
     setModel = state.settings.model || null;
     $('#set-server').value = state.settings.customServerUrl || '';
     $('#set-version').textContent = state.settings.version;
+    $('#set-usage').textContent = window.CodeAIEngine ? window.CodeAIEngine.usageText() : '';
     $('#set-public-deploy').checked = !!state.settings.deployServerUrl;
     setTheme = state.settings.theme;
     document.querySelectorAll('#set-theme button').forEach((b) => b.classList.toggle('active', b.dataset.value === setTheme));
