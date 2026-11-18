@@ -13,6 +13,7 @@
       "allow": [{ "url": "https://*" }, { "url": "codeai://*" }]
     },
     "clipboard-manager:allow-write-text",
+    "notification:default",
     {
       "identifier": "http:default",
       "allow": [

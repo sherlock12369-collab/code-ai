@@ -482,6 +482,32 @@
     return t ? (t.length > 28 ? t.slice(0, 28) + '…' : t) : '사진 대화';
   }
 
+  // ───────── 긴 작업 끝 알림 (폰·컴퓨터, Tauri 알림 플러그인) ─────────
+  // 서버(Firebase) 없이 앱이 직접 띄우는 알림이라 앱이 살아 있을 때만 온다.
+  const LONG_TASK_MS = 15 * 1000;
+  const NOTIFY_ASKED = 'seulai.notifyAsked';
+  const tauriInvoke = (cmd, args) => root.__TAURI__.core.invoke(cmd, args);
+  /** 처음 한 번만 알림 허락을 묻는다 (안드로이드 13+). 사용자가 무언가 보낼 때 부른다. */
+  async function askNotifyPermission() {
+    try {
+      if (!root.__TAURI__ || root.localStorage.getItem(NOTIFY_ASKED)) return;
+      root.localStorage.setItem(NOTIFY_ASKED, '1');
+      if (!(await tauriInvoke('plugin:notification|is_permission_granted'))) await tauriInvoke('plugin:notification|request_permission');
+    } catch (_) { /* 알림 없는 환경 */ }
+  }
+  /** 작업이 LONG_TASK_MS보다 오래 걸렸고 사용자가 다른 곳을 보고 있으면 알린다. */
+  async function notifyIfAway({ startedAt, title, body }) {
+    try {
+      if (!root.__TAURI__ || Date.now() - startedAt < LONG_TASK_MS) return false;
+      const doc = root.document;
+      if (!doc || !(doc.hidden || !doc.hasFocus())) return false;
+      if (!(await tauriInvoke('plugin:notification|is_permission_granted'))) return false;
+      const text = String(body || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/[*_#>`]/g, '').replace(/\s+/g, ' ').trim();
+      await tauriInvoke('plugin:notification|notify', { options: { title, body: text.length > 90 ? text.slice(0, 90) + '…' : text } });
+      return true;
+    } catch (_) { return false; }
+  }
+
   /** 키 확인 — 모델 정보 조회만 해서 요금·무료 한도를 쓰지 않는다. */
   async function checkKey({ fetch, key }) {
     const shape = keyShapeError(key);
@@ -506,7 +532,7 @@
     safeRelativePath, parseFileBlocks, buildContext, buildMessages,
     AIError, chat, stream, checkKey,
     PERSONAS, personaOf, talk, titleFrom,
-    usageToday, usageText, pacificDay,
+    usageToday, usageText, pacificDay, askNotifyPermission, notifyIfAway,
     _resetBusy: () => busyUntil.clear()
   };
   root.CodeAIEngine = api;

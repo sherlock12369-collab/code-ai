@@ -427,6 +427,8 @@
     setBusy(true);
     renderLog();
     save(true);
+    const startedAt = Date.now();
+    AI.askNotifyPermission();
 
     let pending = false;
     const repaint = () => {
@@ -470,6 +472,9 @@
       chat.updated = Date.now();
       setBusy(false);
       if (state.chat === chat) updateMsg(idx);
+      if (!reply.error && reply.content && reply.content !== '*(멈췄어요)*') {
+        AI.notifyIfAway({ startedAt, title: '슬이 답했어요', body: reply.content });
+      }
       state.chat = chat === state.chat ? chat : state.chat;
       invoke('chat_save', { chat }).then(refreshList).catch((err) => toast('대화를 저장하지 못했어요: ' + err));
     }

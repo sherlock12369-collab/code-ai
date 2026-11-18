@@ -67,6 +67,8 @@
     activeChats.set(id, controller);
     const emit = (ev) => emitChat({ id, ...ev });
     const applied = [];
+    const startedAt = Date.now();
+    AI.askNotifyPermission();
     try {
       const key = await invoke('api_key_get');
       if (!key) {
@@ -110,6 +112,11 @@
       }
       const snapshotId = await invoke('ai_finish', { chatId: id });
       emit({ type: 'done', applied, snapshotId });
+      AI.notifyIfAway({
+        startedAt,
+        title: 'Code AI 작업 완료',
+        body: applied.length ? `파일 ${applied.length}개를 만들었어요: ${applied.slice(0, 3).join(', ')}` : r.text
+      });
     } catch (err) {
       if (err && err.name === 'AbortError') emit({ type: 'error', message: '요청을 중지했습니다.', aborted: true });
       else emit({ type: 'error', message: (err && err.message) || String(err) });
