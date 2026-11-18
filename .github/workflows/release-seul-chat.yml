@@ -96,10 +96,9 @@ jobs:
           [ -n "$KEYSTORE" ] || { echo "ANDROID_KEYSTORE 비밀 값이 없음"; exit 1; }
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/seul-chat.jks"
           printf 'password=%s\nkeyAlias=seulchat\nstoreFile=%s\n' "$PASSWORD" "$RUNNER_TEMP/seul-chat.jks" > keystore.properties
-      - run: npx tauri android build --apk --target aarch64
+      # ANDROID_HOME은 서버의 환경 변수라 ${{ env.* }}로는 안 보인다 → 셸에서 읽는다
+      - run: NDK_HOME="$ANDROID_HOME/ndk/27.1.12297006" npx tauri android build --apk --target aarch64
         working-directory: chat
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.1.12297006
       - name: 릴리스에 업로드
         shell: bash
         run: |
